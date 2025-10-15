@@ -6,11 +6,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { doc, getFirestore, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-
-// Initialize Firebase Admin SDK
-const { firestore } = initializeFirebase();
 
 const TriageIncidentInputSchema = z.object({
   incidentId: z.string().describe("The ID of the incident document in Firestore."),
@@ -48,7 +45,14 @@ export const triageIncidentFlow = ai.defineFlow(
     outputSchema: TriageIncidentOutputSchema,
   },
   async ({ incidentId, incidentData }) => {
+    const { firestore } = initializeFirebase();
     
+    if (!firestore) {
+        const message = '❌ Firestore not available';
+        console.error(message);
+        throw new Error(message);
+    }
+
     // Mock AI logic (replace with actual ML API later)
     const { coordinates, photoUrl } = incidentData;
     let priority: 'low' | 'medium' | 'high' = 'low';
