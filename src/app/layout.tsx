@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { Header } from '@/components/header';
 
 export const metadata: Metadata = {
-  title: 'FloodWatch AI',
-  description: 'AI-powered flood risk analysis and prediction.',
+  title: 'FloodGuard',
+  description: 'AI-powered flood reporting and alert system for Pakistan.',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
@@ -17,9 +19,10 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="true" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
+        <Header />
         {children}
         <Toaster />
       </body>
