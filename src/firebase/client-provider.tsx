@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Auth, onAuthStateChanged, User } from 'firebase/auth';
+import { Auth, onAuthStateChanged, User, signInAnonymously as firebaseSignInAnonymously } from 'firebase/auth';
 import { Firestore } from 'firebase/firestore';
 import { FirebaseStorage } from 'firebase/storage';
 import { initializeFirebase } from './index';
@@ -14,6 +14,7 @@ interface FirebaseContextType {
   storage: FirebaseStorage | null;
   user: User | null;
   loading: boolean;
+  signInAnonymously: () => Promise<void>;
 }
 
 const FirebaseContext = createContext<FirebaseContextType>({
@@ -23,10 +24,11 @@ const FirebaseContext = createContext<FirebaseContextType>({
   storage: null,
   user: null,
   loading: true,
+  signInAnonymously: async () => {},
 });
 
 export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [services, setServices] = useState<Omit<FirebaseContextType, 'user' | 'loading'>>({
+  const [services, setServices] = useState<Omit<FirebaseContextType, 'user' | 'loading' | 'signInAnonymously'>>({
     app: null,
     auth: null,
     firestore: null,
@@ -50,8 +52,21 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, []);
 
+  const signInAnonymously = useCallback(async () => {
+    if (services.auth) {
+      setLoading(true);
+      try {
+        await firebaseSignInAnonymously(services.auth);
+      } catch (error) {
+        console.error("Anonymous sign-in failed", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  }, [services.auth]);
+
   return (
-    <FirebaseContext.Provider value={{ ...services, user, loading }}>
+    <FirebaseContext.Provider value={{ ...services, user, loading, signInAnonymously }}>
       {children}
     </FirebaseContext.Provider>
   );
