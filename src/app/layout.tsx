@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Header } from '@/components/header';
+import { FirebaseProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
   title: 'FloodGuard',
@@ -22,9 +23,11 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
-        <Header />
-        {children}
-        <Toaster />
+        <FirebaseProvider>
+          <Header />
+          {children}
+          <Toaster />
+        </FirebaseProvider>
       </body>
     </html>
   );

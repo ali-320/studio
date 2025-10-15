@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,7 +11,6 @@ import {
   FileText,
   Loader2,
   CheckCircle2,
-  AlertTriangle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -41,6 +40,10 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { triageIncident } from '@/ai/flows/triage-incident';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useFirebase } from '@/firebase/client-provider';
 
 const incidentSchema = z.object({
   location: z.string().min(1, 'Location is required.'),
@@ -55,11 +58,12 @@ type IncidentFormValues = z.infer<typeof incidentSchema>;
 
 export function ReportIncidentCard() {
   const { toast } = useToast();
+  const { firestore, storage, auth, user } = useFirebase();
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [location, setLocation] = useState('');
   const [isLocationLoading, setIsLocationLoading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<IncidentFormValues>({
     resolver: zodResolver(incidentSchema),
@@ -76,7 +80,6 @@ export function ReportIncidentCard() {
       (position) => {
         const { latitude, longitude } = position.coords;
         const locationString = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-        setLocation(locationString);
         form.setValue('location', locationString);
         setIsLocationLoading(false);
         toast({
@@ -95,7 +98,7 @@ export function ReportIncidentCard() {
       }
     );
   };
-  
+
   const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
@@ -108,36 +111,84 @@ export function ReportIncidentCard() {
     }
   };
 
-
   async function onSubmit(values: IncidentFormValues) {
     setIsLoading(true);
     setIsSuccess(false);
+
+    if (!firestore) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Firestore not available.' });
+      setIsLoading(false);
+      return;
+    }
     
     // Simulate offline capability
     const isOffline = !navigator.onLine;
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    setIsLoading(false);
-
     if (isOffline) {
         toast({
             title: 'You are offline',
-            description: 'Your report has been saved and will be submitted when you are back online.',
+            description: 'Your report will be submitted when you are back online.',
             variant: 'default',
         });
-        // Here you would typically save the report to IndexedDB
-    } else {
-        setIsSuccess(true);
-        toast({
-            title: 'Report Submitted!',
-            description: 'Thank you for helping your community.',
-        });
+        // In a real PWA, you'd save this to IndexedDB to be processed by a service worker.
+        setIsLoading(false);
+        return;
     }
 
-    form.reset();
-    setPhotoPreview(null);
+    try {
+      const [lat, lng] = values.location.split(',').map(Number);
+      let photoUrl = '';
+
+      if (values.photo && storage) {
+        const photoRef = ref(storage, `incidents/${Date.now()}_${values.photo.name}`);
+        const uploadResult = await uploadBytes(photoRef, values.photo);
+        photoUrl = await getDownloadURL(uploadResult.ref);
+      }
+
+      const incidentData = {
+        userId: user?.uid || "anonymous",
+        coordinates: { lat, lng },
+        severity: "pending", // Set by triage function
+        description: values.description || "",
+        photoUrl: photoUrl,
+        timestamp: serverTimestamp(),
+        status: "reported", // Set by triage function
+      };
+      
+      const incidentsCollection = collection(firestore, 'incidents');
+      const docRef = await addDoc(incidentsCollection, incidentData);
+
+      // Trigger the triage flow
+      await triageIncident({
+        incidentId: docRef.id,
+        incidentData: {
+          ...incidentData,
+          coordinates: { lat: incidentData.coordinates.lat, lng: incidentData.coordinates.lng }
+        }
+      });
+      
+      setIsSuccess(true);
+      toast({
+          title: 'Report Submitted!',
+          description: 'Thank you for helping your community. It is being analyzed.',
+      });
+
+      form.reset();
+      setPhotoPreview(null);
+      if(photoInputRef.current) {
+        photoInputRAef.current.value = "";
+      }
+
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Submission Failed',
+        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   if (isSuccess) {
@@ -147,7 +198,7 @@ export function ReportIncidentCard() {
                  <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
                 <AlertTitle className="mt-4 text-xl font-bold">Report Submitted Successfully!</AlertTitle>
                 <AlertDescription className="mt-2 text-muted-foreground">
-                    Your report has been sent to the authorities. Thank you for your contribution.
+                    Your report has been sent and is being reviewed. Thank you for your contribution.
                 </AlertDescription>
                 <Button onClick={() => setIsSuccess(false)} className="mt-6 w-full">
                     Submit Another Report
@@ -199,18 +250,18 @@ export function ReportIncidentCard() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4" /> Severity
+                    <ShieldAlert className="h-4 w-4" /> Initial Observation
                   </FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a severity level" />
+                        <SelectValue placeholder="Select an initial observation" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="low">Low - Minor water logging</SelectItem>
                       <SelectItem value="medium">Medium - Street flooding</SelectItem>
-                      <SelectItem value="high">High - Dangerous, evacuation needed</SelectItem>
+                      <SelectItem value="high">High - Dangerous, evacuation likely</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -252,6 +303,7 @@ export function ReportIncidentCard() {
                             accept="image/*" 
                             className="w-full opacity-0 z-10 h-full absolute cursor-pointer"
                             onChange={handlePhotoChange}
+                            ref={photoInputRef}
                         />
                         <div className="flex items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
                             {photoPreview ? (
