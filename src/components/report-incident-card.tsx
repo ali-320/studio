@@ -162,9 +162,13 @@ export function ReportIncidentCard() {
       await triageIncident({
         incidentId: docRef.id,
         incidentData: {
-          ...incidentData,
-          coordinates: { lat: incidentData.coordinates.lat, lng: incidentData.coordinates.lng }
-        }
+          userId: incidentData.userId,
+          photoUrl: incidentData.photoUrl,
+          coordinates: { lat: incidentData.coordinates.lat, lng: incidentData.coordinates.lng },
+          severity: incidentData.severity,
+          timestamp: new Date().toISOString(), // Use ISO string for serialization
+          status: incidentData.status,
+        },
       });
       
       setIsSuccess(true);
