@@ -5,14 +5,14 @@
       "description": "Represents a user of the application.",
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "The user's full name."
-        },
         "role": {
           "type": "string",
           "description": "The user's role.",
-          "enum": ["Resident", "Volunteer", "NGO", "Admin"]
+          "enum": ["anonymous", "registered", "volunteer", "admin"]
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
         },
         "phone": {
           "type": "string",
@@ -24,111 +24,110 @@
             "latitude": { "type": "number" },
             "longitude": { "type": "number" }
           },
-          "description": "The user's last known location."
+          "description": "The user's last known location (GeoPoint)."
+        },
+        "savedLocations": {
+            "type": "object",
+            "description": "A map of saved locations for the user."
+        },
+        "status": {
+            "type": "string",
+            "description": "The user's current status.",
+            "enum": ["available", "offline", "responding"]
+        },
+        "fcmToken": {
+            "type": "string",
+            "description": "Firebase Cloud Messaging token for push notifications."
         }
       },
-      "required": ["name", "role"]
+      "required": ["role"]
     },
-    "incident": {
-      "title": "Incident",
-      "description": "Represents a flood incident report.",
+    "alert": {
+      "title": "Alert",
+      "description": "Represents a flood alert.",
       "type": "object",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "The ID of the user who reported the incident."
+        "location": {
+            "type": "object",
+            "properties": {
+                "latitude": { "type": "number" },
+                "longitude": { "type": "number" }
+            },
+            "description": "The location of the alert (GeoPoint)."
         },
-        "photoUrl": {
+        "riskScore": {
           "type": "string",
-          "description": "URL of the uploaded incident photo in Firebase Storage."
+          "description": "The calculated risk score.",
+          "enum": ["Low", "Medium", "High"]
         },
-        "coordinates": {
-           "type": "object",
-          "properties": {
-            "latitude": { "type": "number" },
-            "longitude": { "type": "number" }
-          },
-          "description": "GPS coordinates of the incident."
+        "status": {
+            "type": "string",
+            "description": "The status of the alert.",
+            "enum": ["active", "accepted", "resolved"]
         },
-        "severity": {
-          "type": "string",
-          "description": "Severity level of the flood.",
-          "enum": ["low", "medium", "high"]
+        "assignedVolunteer": {
+            "type": "string",
+            "description": "The UID of the volunteer assigned to this alert."
+        },
+        "resolvedBy": {
+            "type": "string",
+            "description": "The UID of the user who resolved this alert."
         },
         "timestamp": {
           "type": "string",
           "format": "date-time",
-          "description": "The time the incident was reported."
-        },
-        "status": {
-            "type": "string",
-            "description": "The status of the incident.",
-            "enum": ["reported", "verified", "resolved"]
+          "description": "The time the alert was created."
         }
       },
-      "required": ["userId", "coordinates", "severity", "timestamp", "status"]
+      "required": ["location", "riskScore", "status", "timestamp"]
     },
-    "shelter": {
-        "title": "Shelter",
-        "description": "Represents a designated flood shelter.",
+    "volunteerApplication": {
+        "title": "Volunteer Application",
+        "description": "Represents a user's application to become a volunteer.",
         "type": "object",
         "properties": {
-            "name": { "type": "string" },
-            "lat": { "type": "number" },
-            "lng": { "type": "number" },
-            "capacity": { "type": "number" },
-            "contact": { "type": "string" }
+            "userId": { "type": "string", "description": "The UID of the user applying." },
+            "name": { "type": "string", "description": "The applicant's name." },
+            "expertise": { "type": "string", "description": "The applicant's listed expertise." },
+            "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "The application status." }
         },
-        "required": ["name", "lat", "lng"]
+        "required": ["userId", "name", "status"]
     },
-    "alert": {
-        "title": "Alert",
-        "description": "Represents a broadcasted alert.",
+    "incidentReport": {
+        "title": "Incident Report",
+        "description": "Represents a detailed report filed by a volunteer for an alert.",
         "type": "object",
         "properties": {
-            "area": { "type": "string", "description": "A description or polygon of the affected area." },
-            "message": { "type": "string" },
-            "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+            "alertId": { "type": "string", "description": "The ID of the parent alert." },
+            "volunteerId": { "type": "string", "description": "The ID of the volunteer filing the report." },
+            "casualties": { "type": "number" },
+            "injuries": { "type": "number" },
+            "safetyStatus": { "type": "string" },
+            "lossEstimate": { "type": "number" },
             "timestamp": { "type": "string", "format": "date-time" }
         },
-        "required": ["area", "message", "priority", "timestamp"]
-    },
-    "alert_log": {
-        "title": "Alert Log",
-        "description": "Logs the delivery of an alert to a specific user.",
-        "type": "object",
-        "properties": {
-            "alertId": { "type": "string" },
-            "userId": { "type": "string" },
-            "delivered": { "type": "boolean" },
-            "time": { "type": "string", "format": "date-time" }
-        },
-        "required": ["alertId", "userId", "delivered", "time"]
+        "required": ["alertId", "volunteerId", "timestamp"]
     }
   },
   "auth": {
-    "providers": ["phone", "email"]
+    "providers": ["anonymous", "phone"]
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/user" },
       "description": "Stores user profiles."
     },
-    "/incidents/{incidentId}": {
-      "schema": { "$ref": "#/entities/incident" },
-      "description": "Stores all reported flood incidents."
-    },
-    "/shelters/{shelterId}": {
-      "schema": { "$ref": "#/entities/shelter" },
-      "description": "Lists available emergency shelters."
-    },
     "/alerts/{alertId}": {
       "schema": { "$ref": "#/entities/alert" },
-      "description": "Stores all broadcasted alerts."
+      "description": "Stores all active and resolved flood alerts."
     },
-    "/alert_logs/{logId}": {
-        "schema": { "$ref": "#/entities/alert_log" },
-        "description": "Tracks delivery status of alerts to users."
+    "/volunteerApplications/{applicationId}": {
+      "schema": { "$ref": "#/entities/volunteerApplication" },
+      "description": "Stores applications from users wishing to become volunteers."
+    },
+    "/incidentReports/{reportId}": {
+        "schema": { "$ref": "#/entities/incidentReport" },
+        "description": "Stores detailed incident reports from volunteers."
     }
   }
 }

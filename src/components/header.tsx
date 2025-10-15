@@ -11,6 +11,11 @@ export function Header() {
           <Droplets className="h-6 w-6 text-primary" />
           <h1 className="text-xl font-bold font-headline text-foreground">FloodGuard</h1>
         </Link>
+        <nav className="hidden md:flex items-center gap-4">
+            <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">Dashboard</Link>
+            <Link href="/report" className="text-muted-foreground hover:text-foreground">Report</Link>
+            <Link href="/profile" className="text-muted-foreground hover:text-foreground">Profile</Link>
+        </nav>
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="md:hidden">
@@ -27,16 +32,13 @@ export function Header() {
                 <Droplets className="h-6 w-6 text-primary" />
                 <span className="sr-only">FloodGuard</span>
               </Link>
-              <Link href="#" className="text-muted-foreground hover:text-foreground">
+              <Link href="/dashboard" className="hover:text-foreground">
                 Dashboard
               </Link>
-              <Link href="#" className="text-muted-foreground hover:text-foreground">
-                Reports
+              <Link href="/report" className="text-muted-foreground hover:text-foreground">
+                Report Incident
               </Link>
-              <Link href="#" className="text-muted-foreground hover:text-foreground">
-                Alerts
-              </Link>
-              <Link href="#" className="text-muted-foreground hover:text-foreground">
+              <Link href="/profile" className="text-muted-foreground hover:text-foreground">
                 Profile
               </Link>
             </nav>

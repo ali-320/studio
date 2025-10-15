@@ -7,16 +7,16 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
 const SendAlertInputSchema = z.object({
-  area: z.string().describe('The geographical area to send the alert to.'),
+  userIds: z.array(z.string()).describe('A list of user UIDs to send the alert to.'),
   message: z.string().describe('The alert message content.'),
-  priority: z.enum(['low', 'medium', 'high']).describe('The priority of the alert.'),
+  alertId: z.string().describe('The ID of the alert being sent.'),
 });
 
 const SendAlertOutputSchema = z.object({
   success: z.boolean(),
-  messageId: z.string().optional(),
+  sentCount: z.number(),
+  failedCount: z.number(),
 });
-
 
 export const sendAlert = ai.defineFlow(
   {
@@ -26,11 +26,15 @@ export const sendAlert = ai.defineFlow(
   },
   async (input) => {
     // Placeholder logic. In a real implementation, this would integrate with FCM or Twilio.
-    console.log(`Sending alert to ${input.area}: ${input.message}`);
+    console.log(`Sending alert "${input.message}" to ${input.userIds.length} users.`);
     
+    // Here you would look up FCM tokens for each userId and send the message.
+    // For now, we'll simulate a successful dispatch.
+
     return {
       success: true,
-      messageId: `mock-message-${Date.now()}`,
+      sentCount: input.userIds.length,
+      failedCount: 0,
     };
   }
 );

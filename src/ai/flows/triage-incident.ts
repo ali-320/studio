@@ -6,36 +6,28 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { doc, updateDoc } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
 
 const TriageIncidentInputSchema = z.object({
-  incidentId: z.string().describe("The ID of the incident document in Firestore."),
-  incidentData: z.object({
-      userId: z.string(),
-      photoUrl: z.string().optional(),
-      coordinates: z.object({
-        lat: z.number(),
-        lng: z.number(),
-      }),
-      severity: z.string(),
-      status: z.string(),
-  }).describe("The data of the newly created incident."),
+  reportId: z.string().describe("The ID of the incident report document in Firestore."),
+  location: z.object({
+      latitude: z.number(),
+      longitude: z.number(),
+    }).describe("The location of the incident."),
+  hasPhoto: z.boolean().describe("Whether the report includes a photo.")
 });
 
 const TriageIncidentOutputSchema = z.object({
-    success: z.boolean(),
+    riskScore: z.enum(['Low', 'Medium', 'High']),
     message: z.string(),
 });
 
 /**
  * A flow that triages a new flood incident.
- * This function can be called from the client-side after an incident is created.
+ * This can be called after an incident is created to determine its risk score.
  */
 export async function triageIncident(input: z.infer<typeof TriageIncidentInputSchema>): Promise<z.infer<typeof TriageIncidentOutputSchema>> {
   return triageIncidentFlow(input);
 }
-
 
 export const triageIncidentFlow = ai.defineFlow(
   {
@@ -43,38 +35,20 @@ export const triageIncidentFlow = ai.defineFlow(
     inputSchema: TriageIncidentInputSchema,
     outputSchema: TriageIncidentOutputSchema,
   },
-  async ({ incidentId, incidentData }) => {
-    const { firestore } = initializeFirebase();
+  async ({ reportId, location, hasPhoto }) => {
     
-    if (!firestore) {
-        const message = '❌ Firestore not available';
-        console.error(message);
-        throw new Error(message);
-    }
-    
-    const { coordinates, photoUrl } = incidentData;
-    let priority: 'low' | 'medium' | 'high' = 'low';
+    // Mock AI logic (replace with actual ML API later)
+    let riskScore: 'Low' | 'Medium' | 'High' = 'Low';
 
     // Simple rules – upgrade later with ML scoring
-    if (photoUrl) priority = "medium";
-    if (coordinates.lat > 33.65 && coordinates.lng > 73.00) priority = "high";
+    if (hasPhoto) riskScore = "Medium";
+    if (location.latitude > 33.65 && location.longitude > 73.00) riskScore = "High";
 
-    const incidentRef = doc(firestore, "incidents", incidentId);
-
-    try {
-        await updateDoc(incidentRef, {
-            severity: priority,
-            status: "triaged"
-        });
-        
-        const message = `✅ Incident triaged: ${incidentId} → ${priority}`;
-        console.log(message);
-        return { success: true, message };
-
-    } catch (error) {
-        const message = `❌ Failed to triage incident ${incidentId}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(message);
-        throw new Error(message);
-    }
+    const message = `✅ Incident triaged: ${reportId} → ${riskScore}`;
+    console.log(message);
+    
+    // In a real implementation, we would update the alert document in Firestore here.
+    // For now, we just return the calculated risk score.
+    return { riskScore, message };
   }
 );
