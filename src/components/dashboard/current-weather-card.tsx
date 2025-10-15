@@ -1,15 +1,24 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CloudRain, Wind, Thermometer, Sunrise, Sunset, Sun } from "lucide-react";
+import { CloudRain, Wind, Thermometer, Sunrise, Sunset, Sun, Map } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export function CurrentWeatherCard() {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="font-headline flex items-center gap-2">
             <Sun className="h-6 w-6 text-primary" />
             Current Weather
         </CardTitle>
+        <Link href="https://www.windy.com" target="_blank" rel="noopener noreferrer">
+          <Button variant="outline" size="sm">
+            <Map className="mr-2 h-4 w-4" />
+            Live Map
+          </Button>
+        </Link>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">

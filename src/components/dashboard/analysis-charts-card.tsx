@@ -1,11 +1,15 @@
+
 "use client";
 
+import *
+as React from "react";
 import { AreaChart, BarChart as RechartsBarChart, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Area, Bar } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartStyle } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { historicalWeatherData, glacierData, terrainData } from "@/lib/data";
 import { TrendingUp, Mountain, Globe, History } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const chartConfig = {
   rainfall: {
@@ -30,6 +34,12 @@ const terrainChartConfig = {
 }
 
 export function AnalysisChartsCard() {
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 11 }, (_, i) => currentYear - i);
+  const [selectedYear, setSelectedYear] = React.useState<number>(currentYear);
+
+  const chartData = historicalWeatherData[selectedYear] || [];
+
   return (
     <Card>
       <CardHeader>
@@ -47,8 +57,20 @@ export function AnalysisChartsCard() {
             <TabsTrigger value="terrain"><Globe className="mr-2 h-4 w-4" />Terrain</TabsTrigger>
           </TabsList>
           <TabsContent value="historical" className="pt-4">
+            <div className="flex justify-end mb-4">
+                <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(Number(value))}>
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select a year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {years.map(year => (
+                            <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
              <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-              <AreaChart data={historicalWeatherData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
                 <YAxis yAxisId="left" stroke="hsl(var(--primary))" />
