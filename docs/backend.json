@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "Represents a user of the application.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
+        },
+        "role": {
+          "type": "string",
+          "description": "The user's role.",
+          "enum": ["Resident", "Volunteer", "NGO", "Admin"]
+        },
+        "phone": {
+          "type": "string",
+          "description": "The user's phone number."
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" }
+          },
+          "description": "The user's last known location."
+        }
+      },
+      "required": ["name", "role"]
+    },
+    "incident": {
+      "title": "Incident",
+      "description": "Represents a flood incident report.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who reported the incident."
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "URL of the uploaded incident photo in Firebase Storage."
+        },
+        "coordinates": {
+           "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" }
+          },
+          "description": "GPS coordinates of the incident."
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity level of the flood.",
+          "enum": ["low", "medium", "high"]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the incident was reported."
+        },
+        "status": {
+            "type": "string",
+            "description": "The status of the incident.",
+            "enum": ["reported", "verified", "resolved"]
+        }
+      },
+      "required": ["userId", "coordinates", "severity", "timestamp", "status"]
+    },
+    "shelter": {
+        "title": "Shelter",
+        "description": "Represents a designated flood shelter.",
+        "type": "object",
+        "properties": {
+            "name": { "type": "string" },
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "capacity": { "type": "number" },
+            "contact": { "type": "string" }
+        },
+        "required": ["name", "lat", "lng"]
+    },
+    "alert": {
+        "title": "Alert",
+        "description": "Represents a broadcasted alert.",
+        "type": "object",
+        "properties": {
+            "area": { "type": "string", "description": "A description or polygon of the affected area." },
+            "message": { "type": "string" },
+            "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+            "timestamp": { "type": "string", "format": "date-time" }
+        },
+        "required": ["area", "message", "priority", "timestamp"]
+    },
+    "alert_log": {
+        "title": "Alert Log",
+        "description": "Logs the delivery of an alert to a specific user.",
+        "type": "object",
+        "properties": {
+            "alertId": { "type": "string" },
+            "userId": { "type": "string" },
+            "delivered": { "type": "boolean" },
+            "time": { "type": "string", "format": "date-time" }
+        },
+        "required": ["alertId", "userId", "delivered", "time"]
+    }
+  },
+  "auth": {
+    "providers": ["phone", "email"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/user" },
+      "description": "Stores user profiles."
+    },
+    "/incidents/{incidentId}": {
+      "schema": { "$ref": "#/entities/incident" },
+      "description": "Stores all reported flood incidents."
+    },
+    "/shelters/{shelterId}": {
+      "schema": { "$ref": "#/entities/shelter" },
+      "description": "Lists available emergency shelters."
+    },
+    "/alerts/{alertId}": {
+      "schema": { "$ref": "#/entities/alert" },
+      "description": "Stores all broadcasted alerts."
+    },
+    "/alert_logs/{logId}": {
+        "schema": { "$ref": "#/entities/alert_log" },
+        "description": "Tracks delivery status of alerts to users."
+    }
+  }
+}
