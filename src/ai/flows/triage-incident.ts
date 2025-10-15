@@ -52,8 +52,7 @@ export const triageIncidentFlow = ai.defineFlow(
         console.error(message);
         throw new Error(message);
     }
-
-    // Mock AI logic (replace with actual ML API later)
+    
     const { coordinates, photoUrl } = incidentData;
     let priority: 'low' | 'medium' | 'high' = 'low';
 
