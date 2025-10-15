@@ -13,13 +13,13 @@ export function FloodWatchDashboard() {
 
   return (
     <main className="flex-1">
-      <div className="container py-6">
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
+      <div className="container py-4 md:py-6">
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="md:col-span-2 lg:col-span-2 space-y-4 md:space-y-6">
             <RiskAssessmentCard setRegion={setRegion} />
             <AnalysisChartsCard region={region} />
           </div>
-          <div className="lg:col-span-1 space-y-6">
+          <div className="md:col-span-2 lg:col-span-1 space-y-4 md:space-y-6">
             <CurrentWeatherCard />
             <NewsFeedCard />
             <ScenarioPlannerCard />
