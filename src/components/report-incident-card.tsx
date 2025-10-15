@@ -148,17 +148,18 @@ export function ReportIncidentCard() {
       const incidentData = {
         userId: user?.uid || "anonymous",
         coordinates: { lat, lng },
-        severity: "pending", // Set by triage function
+        severity: "pending", // This is the initial severity from the form, to be triaged
         description: values.description || "",
         photoUrl: photoUrl,
         timestamp: serverTimestamp(),
-        status: "reported", // Set by triage function
+        status: "reported",
       };
       
       const incidentsCollection = collection(firestore, 'incidents');
       const docRef = await addDoc(incidentsCollection, incidentData);
 
-      // Trigger the triage flow
+      // Trigger the triage flow.
+      // NOTE: We do not pass the timestamp, as it's a server-side object and not serializable.
       await triageIncident({
         incidentId: docRef.id,
         incidentData: {
@@ -166,7 +167,6 @@ export function ReportIncidentCard() {
           photoUrl: incidentData.photoUrl,
           coordinates: { lat: incidentData.coordinates.lat, lng: incidentData.coordinates.lng },
           severity: incidentData.severity,
-          timestamp: new Date().toISOString(), // Use ISO string for serialization
           status: incidentData.status,
         },
       });

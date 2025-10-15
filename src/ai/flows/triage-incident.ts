@@ -19,7 +19,6 @@ const TriageIncidentInputSchema = z.object({
         lng: z.number(),
       }),
       severity: z.string(),
-      timestamp: z.any(),
       status: z.string(),
   }).describe("The data of the newly created incident."),
 });
@@ -64,7 +63,7 @@ export const triageIncidentFlow = ai.defineFlow(
 
     try {
         await updateDoc(incidentRef, {
-            severity: priority, // This was the bug. It should be severity.
+            severity: priority,
             status: "triaged"
         });
         
