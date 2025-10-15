@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -24,7 +25,7 @@ const locationSchema = z.object({
 
 type LocationFormValues = z.infer<typeof locationSchema>;
 
-export function RiskAssessmentCard() {
+export function RiskAssessmentCard({ setRegion }: { setRegion: (region: string) => void }) {
   const [prediction, setPrediction] = useState<PredictFloodRiskOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export function RiskAssessmentCard() {
     setIsLoading(true);
     setError(null);
     setPrediction(null);
+    setRegion(values.location);
     try {
       const result = await getFloodPrediction(values);
       setPrediction(result);

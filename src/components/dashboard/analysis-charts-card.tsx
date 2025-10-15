@@ -7,7 +7,7 @@ import { AreaChart, BarChart as RechartsBarChart, PieChart, Pie, Cell, Responsiv
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { historicalWeatherData, glacierData, terrainData } from "@/lib/data";
+import { getHistoricalWeatherData, getTerrainData, glacierData } from "@/lib/data";
 import { TrendingUp, Mountain, Globe, History } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -33,19 +33,20 @@ const terrainChartConfig = {
   terrain4: { label: "Elevation > 500m", color: "#2b8cbe" },
 }
 
-export function AnalysisChartsCard() {
+export function AnalysisChartsCard({ region }: { region: string }) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 11 }, (_, i) => currentYear - i);
   const [selectedYear, setSelectedYear] = React.useState<number>(currentYear);
 
-  const chartData = historicalWeatherData[selectedYear] || [];
+  const chartData = getHistoricalWeatherData(selectedYear, region);
+  const terrainData = getTerrainData(region);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="font-headline flex items-center gap-2">
             <TrendingUp className="h-6 w-6 text-primary" />
-            Data Analysis
+            Data Analysis {region && `- ${region}`}
         </CardTitle>
         <CardDescription>Visualize historical patterns and geographical factors.</CardDescription>
       </CardHeader>
@@ -86,9 +87,10 @@ export function AnalysisChartsCard() {
             <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
               <RechartsBarChart data={glacierData}>
                 <CartesianGrid vertical={false} />
-                <XAxis dataKey="year" tickLine={false} axisLine={false} tickMargin={8} />
+                <XAxis dataKey="mountain" tickLine={false} axisLine={false} tickMargin={8} />
                 <YAxis />
                 <Tooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                <Legend />
                 <Bar dataKey="mass" name="Glacier Mass Index" fill="hsl(var(--primary))" radius={4} />
               </RechartsBarChart>
             </ChartContainer>
