@@ -64,7 +64,7 @@ export const triageIncidentFlow = ai.defineFlow(
 
     try {
         await updateDoc(incidentRef, {
-            severity: priority,
+            severity: priority, // This was the bug. It should be severity.
             status: "triaged"
         });
         
