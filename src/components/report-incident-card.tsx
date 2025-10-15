@@ -58,7 +58,7 @@ type IncidentFormValues = z.infer<typeof incidentSchema>;
 
 export function ReportIncidentCard() {
   const { toast } = useToast();
-  const { firestore, storage, auth, user } = useFirebase();
+  const { firestore, storage, user } = useFirebase();
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLocationLoading, setIsLocationLoading] = useState(false);
@@ -176,7 +176,7 @@ export function ReportIncidentCard() {
       form.reset();
       setPhotoPreview(null);
       if(photoInputRef.current) {
-        photoInputRAef.current.value = "";
+        photoInputRef.current.value = "";
       }
 
     } catch (error) {
