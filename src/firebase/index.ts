@@ -26,6 +26,9 @@ let storage: FirebaseStorage;
 
 function initializeFirebase(): FirebaseServices {
   if (getApps().length === 0) {
+    if (!firebaseConfig.apiKey) {
+      throw new Error("Missing Firebase API Key. Please set NEXT_PUBLIC_FIREBASE_API_KEY in your .env file");
+    }
     firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     firestore = getFirestore(firebaseApp);

@@ -3,9 +3,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Auth, onAuthStateChanged, User, signInAnonymously as firebaseSignInAnonymously } from 'firebase/auth';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { FirebaseStorage } from 'firebase/storage';
 import { initializeFirebase } from './index';
+import { toast } from '@/hooks/use-toast';
 
 interface FirebaseContextType {
   app: FirebaseApp | null;
@@ -41,6 +42,24 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const { app, auth, firestore, storage } = initializeFirebase();
     setServices({ app, auth, firestore, storage });
     
+    if (firestore) {
+      enableIndexedDbPersistence(firestore).catch((err) => {
+        if (err.code == 'failed-precondition') {
+          toast({
+            variant: "destructive",
+            title: "Offline Mode Failed",
+            description: "Multiple tabs open, offline persistence can only be enabled in one tab at a a time.",
+          })
+        } else if (err.code == 'unimplemented') {
+          toast({
+            variant: "destructive",
+            title: "Offline Mode Not Supported",
+            description: "The current browser does not support all of the features required to enable offline persistence.",
+          })
+        }
+      });
+    }
+
     if (auth) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         setUser(user);
@@ -59,6 +78,11 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         await firebaseSignInAnonymously(services.auth);
       } catch (error) {
         console.error("Anonymous sign-in failed", error);
+        toast({
+          variant: "destructive",
+          title: "Authentication Failed",
+          description: "Could not sign you in anonymously. Please check your connection.",
+        })
       } finally {
         setLoading(false);
       }
