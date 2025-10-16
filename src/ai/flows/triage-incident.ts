@@ -3,6 +3,9 @@
  * @fileOverview This flow will handle the AI scoring of incident severity.
  * It is designed to be triggered when a new incident is created.
  */
+import { config } from 'dotenv';
+config();
+
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { initializeFirebase } from '@/firebase';
