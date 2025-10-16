@@ -74,7 +74,7 @@ export default function Home() {
     }
   }, [user, firestore]);
 
-  if (loading || isLocationLoading) {
+  if (loading || (isLocationLoading && !user)) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center space-y-4">
         <Loader />

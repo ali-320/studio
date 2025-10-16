@@ -25,16 +25,16 @@ let firestore: Firestore;
 let storage: FirebaseStorage;
 
 function initializeFirebase(): FirebaseServices {
-  if (getApps().length === 0) {
-    if (!firebaseConfig.apiKey) {
-      throw new Error("Missing Firebase API Key. Please ensure your .env file is set up correctly.");
+    if (getApps().length === 0) {
+      if (!firebaseConfig.apiKey) {
+        throw new Error("Missing Firebase API Key. Please ensure your .env file is set up correctly and variables are prefixed with NEXT_PUBLIC_.");
+      }
+      firebaseApp = initializeApp(firebaseConfig);
+      auth = getAuth(firebaseApp);
+      firestore = getFirestore(firebaseApp);
+      storage = getStorage(firebaseApp);
     }
-    firebaseApp = initializeApp(firebaseConfig);
-    auth = getAuth(firebaseApp);
-    firestore = getFirestore(firebaseApp);
-    storage = getStorage(firebaseApp);
-  }
-  return { app: firebaseApp, auth, firestore, storage };
+    return { app: firebaseApp, auth, firestore, storage };
 }
 
 // Export hooks and providers
