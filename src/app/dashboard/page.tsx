@@ -111,7 +111,7 @@ export default function DashboardPage() {
           {/* Sidebar column */}
           <div className="space-y-6">
             <LiveWeather />
-            <NewsBoard />
+            <NewsBoard location={locationName} />
           </div>
         </div>
       </div>
