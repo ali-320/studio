@@ -14,8 +14,7 @@ export default function Home() {
   const { user, loading, firestore, signInAnonymously } = useFirebase();
   const [isLocationLoading, setIsLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   useEffect(() => {
     if (!loading && !user) {
       signInAnonymously?.();
@@ -23,11 +22,19 @@ export default function Home() {
   }, [user, loading, signInAnonymously]);
 
   useEffect(() => {
+    let watchId: number | null = null;
     if (user && firestore) {
       const requestLocation = () => {
         setIsLocationLoading(true);
         setLocationError(null);
-        navigator.geolocation.watchPosition(
+        
+        if (!navigator.geolocation) {
+          setLocationError('Geolocation is not supported by your browser.');
+          setIsLocationLoading(false);
+          return;
+        }
+
+        watchId = navigator.geolocation.watchPosition(
           async (position) => {
             const { latitude, longitude } = position.coords;
             const userRef = doc(firestore, 'users', user.uid);
@@ -37,11 +44,11 @@ export default function Home() {
                 role: user.isAnonymous ? 'anonymous' : 'registered',
                 status: 'available',
               }, { merge: true });
-              setIsLocationLoading(false);
+              if(isLocationLoading) setIsLocationLoading(false);
             } catch (error) {
               console.error("Error updating location:", error);
               setLocationError("Could not update your location in our system.");
-              setIsLocationLoading(false);
+               if(isLocationLoading) setIsLocationLoading(false);
             }
           },
           (error) => {
@@ -54,10 +61,16 @@ export default function Home() {
               description: 'Please enable location permissions for full functionality.',
             });
           },
-          { enableHighAccuracy: true }
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
         );
       };
       requestLocation();
+    }
+
+    return () => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+      }
     }
   }, [user, firestore]);
 
@@ -66,7 +79,7 @@ export default function Home() {
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center space-y-4">
         <Loader />
         <p className="text-muted-foreground">
-          {loading ? 'Initializing...' : 'Acquiring your location...'}
+          {loading ? 'Authenticating...' : 'Acquiring your location...'}
         </p>
       </div>
     );
@@ -106,11 +119,11 @@ export default function Home() {
                 {locationError && (
                    <Card className="bg-destructive/10 border-destructive">
                      <CardHeader className="flex flex-row items-center justify-between pb-2">
-                         <CardTitle className="text-lg font-medium text-destructive-foreground">Location Error</CardTitle>
-                         <MapPin className="h-6 w-6 text-destructive-foreground" />
+                         <CardTitle className="text-lg font-medium text-destructive">Location Error</CardTitle>
+                         <MapPin className="h-6 w-6 text-destructive" />
                      </CardHeader>
                      <CardContent>
-                         <p className="text-sm text-destructive-foreground">{locationError}</p>
+                         <p className="text-sm text-destructive">{locationError}</p>
                      </CardContent>
                  </Card>
                 )}
@@ -134,7 +147,7 @@ export default function Home() {
                 <CardDescription>Sign in to report incidents and receive alerts.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full h-20" onClick={signInAnonymously}>
+                <Button className="w-full h-20" onClick={signInAnonymously} disabled={loading}>
                   <LogIn className="mr-2 h-5 w-5" /> Anonymous Login
                 </Button>
               </CardContent>

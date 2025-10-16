@@ -39,35 +39,45 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { app, auth, firestore, storage } = initializeFirebase();
-    setServices({ app, auth, firestore, storage });
-    
-    if (firestore) {
-      enableIndexedDbPersistence(firestore).catch((err) => {
-        if (err.code == 'failed-precondition') {
-          toast({
-            variant: "destructive",
-            title: "Offline Mode Failed",
-            description: "Multiple tabs open, offline persistence can only be enabled in one tab at a a time.",
-          })
-        } else if (err.code == 'unimplemented') {
-          toast({
-            variant: "destructive",
-            title: "Offline Mode Not Supported",
-            description: "The current browser does not support all of the features required to enable offline persistence.",
-          })
-        }
-      });
-    }
+    try {
+      const { app, auth, firestore, storage } = initializeFirebase();
+      setServices({ app, auth, firestore, storage });
+      
+      if (firestore) {
+        enableIndexedDbPersistence(firestore).catch((err) => {
+          if (err.code == 'failed-precondition') {
+            toast({
+              variant: "destructive",
+              title: "Offline Mode Failed",
+              description: "Multiple tabs open, offline persistence can only be enabled in one tab at a a time.",
+            })
+          } else if (err.code == 'unimplemented') {
+            toast({
+              variant: "destructive",
+              title: "Offline Mode Not Supported",
+              description: "The current browser does not support all of the features required to enable offline persistence.",
+            })
+          }
+        });
+      }
 
-    if (auth) {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        setUser(user);
-        setLoading(false);
-      });
-      return () => unsubscribe();
-    } else {
-        setLoading(false);
+      if (auth) {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+          setUser(user);
+          setLoading(false);
+        });
+        return () => unsubscribe();
+      } else {
+          setLoading(false);
+      }
+    } catch(error: any) {
+       console.error("Firebase initialization failed:", error);
+       toast({
+          variant: "destructive",
+          title: "Authentication Failed",
+          description: error.message || "Could not connect to Firebase. Please check your API keys.",
+        })
+       setLoading(false);
     }
   }, []);
 
@@ -81,7 +91,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         toast({
           variant: "destructive",
           title: "Authentication Failed",
-          description: "Could not sign you in anonymously. Please check your connection.",
+          description: "Could not sign you in anonymously. Please check your connection and API keys.",
         })
       } finally {
         setLoading(false);
