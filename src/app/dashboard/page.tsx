@@ -168,6 +168,7 @@ export default function DashboardPage() {
                       requestResourceData: userData,
                     });
                     errorEmitter.emit('permission-error', permissionError);
+                    toast({ variant: "destructive", title: "Update Failed", description: "Could not update your location." });
                 });
             } else {
                 toast({ variant: "destructive", title: "Geocoding Failed", description: "Could not find coordinates for the address." });
@@ -192,7 +193,7 @@ export default function DashboardPage() {
           
           setDoc(userRef, { savedLocations: newSavedLocations }, { merge: true })
             .then(() => {
-              setSavedLocations(newSavedLocations);
+              fetchAndSetLocationData(user.uid);
               toast({ title: "Location Deleted", description: `"${locationKey}" has been removed from your saved locations.` });
             })
             .catch((serverError) => {
