@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +19,7 @@ const tempData = [
 const rainfallData = [
   { name: 'Mon', rainfall: 5 },
   { name: 'Tue', rainfall: 2 },
-  { name 'Wed', rainfall: 15 },
+  { name: 'Wed', rainfall: 15 },
   { name: 'Thu', rainfall: 8 },
   { name: 'Fri', rainfall: 3 },
   { name: 'Sat', rainfall: 0 },
