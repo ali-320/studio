@@ -38,25 +38,19 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
       });
       return;
     }
-     if (allowSave && !locationName) {
-      toast({
-        variant: 'destructive',
-        title: 'Name Required',
-        description: 'Please provide a name for the location you are saving.',
-      });
-      return;
-    }
-
+    
     setIsFetching(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        if (allowSave && locationName) {
-            onLocationUpdate(position, locationName);
-             toast({ title: 'Location Saved!', description: `Saved "${locationName}" successfully.` });
+        const nameToSave = allowSave && locationName.trim() ? locationName.trim() : undefined;
+        onLocationUpdate(position, nameToSave);
+        
+        if (nameToSave) {
+          toast({ title: 'Location Saved!', description: `Saved "${nameToSave}" successfully.` });
         } else {
-            onLocationUpdate(position);
-            toast({ title: 'Location Set!', description: 'Your location has been updated automatically.' });
+          toast({ title: 'Location Set!', description: 'Your location has been updated automatically.' });
         }
+        
         setIsFetching(false);
         setOpen(false);
       },
@@ -68,7 +62,7 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
           title: 'Location Access Denied',
           description: 'Please enable location permissions in your browser settings.',
         });
-        setShowManual(true); // Offer manual input if auto fails
+        setShowManual(true);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -80,17 +74,16 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
           toast({ variant: 'destructive', title: 'Invalid Address', description: 'Please enter a valid address.' });
           return;
       }
-       if (allowSave && !locationName) {
-          toast({ variant: 'destructive', title: 'Name Required', description: 'Please provide a name for the location.' });
-          return;
-       }
       
-       if (allowSave && locationName) {
-            onManualLocationSubmit(manualAddress, locationName);
-            toast({ title: 'Location Saved!', description: `Saved "${locationName}" successfully.` });
-        } else {
-            onManualLocationSubmit(manualAddress);
-        }
+      const nameToSave = allowSave && locationName.trim() ? locationName.trim() : undefined;
+      onManualLocationSubmit(manualAddress, nameToSave);
+
+      if (nameToSave) {
+        toast({ title: 'Location Saved!', description: `Saved "${nameToSave}" successfully.` });
+      } else {
+        toast({ title: 'Location Set!', description: 'Your location has been updated.' });
+      }
+
       setOpen(false);
   }
 
@@ -115,9 +108,9 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
           }
       }}>
         <DialogHeader>
-          <DialogTitle>{allowSave ? 'Add/Edit Location' : 'Set Location'}</DialogTitle>
+          <DialogTitle>{allowSave ? 'Add/Change Location' : 'Set Location'}</DialogTitle>
           <DialogDescription>
-            {allowSave ? "Save a new location by name for quick access later." : "Use your current location or enter one manually."}
+            {allowSave ? "To save a location, provide a name. Otherwise, the location will only be updated for this session." : "Use your current location or enter one manually."}
           </DialogDescription>
         </DialogHeader>
         
@@ -125,10 +118,9 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
             <form onSubmit={handleManualSubmit} className="space-y-4 pt-4">
                 {allowSave && (
                      <Input 
-                        placeholder="Location Name (e.g., Office, Parents' House)"
+                        placeholder="Save as (e.g., Office, Home)... (optional)"
                         value={locationName}
                         onChange={(e) => setLocationName(e.target.value)}
-                        required
                     />
                 )}
                 <Input 
@@ -141,7 +133,7 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
                     <Button type="button" variant="ghost" onClick={() => setShowManual(false)}>Back</Button>
                     <Button type="submit">
                         <Save className="mr-2 h-4 w-4"/>
-                        {allowSave ? 'Save Location' : 'Set Address'}
+                        {locationName.trim() ? 'Save and Set' : 'Set Location'}
                     </Button>
                 </DialogFooter>
             </form>
@@ -149,12 +141,12 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
             <div className="space-y-4 py-4">
                  {allowSave && (
                      <Input 
-                        placeholder="Location Name (e.g., Office, Parents' House)"
+                        placeholder="Save as (e.g., Office, Home)... (optional)"
                         value={locationName}
                         onChange={(e) => setLocationName(e.target.value)}
                     />
                 )}
-                <Button onClick={handleAutoDetect} className="w-full h-16" disabled={isFetching || (allowSave && !locationName)}>
+                <Button onClick={handleAutoDetect} className="w-full h-16" disabled={isFetching}>
                     {isFetching ? (
                         <>
                             <Loader2 className="mr-2 h-5 w-5 animate-spin" />

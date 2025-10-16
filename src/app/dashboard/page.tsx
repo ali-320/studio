@@ -11,7 +11,7 @@ import { LiveWeather } from '@/components/dashboard/live-weather';
 import { NewsBoard } from '@/components/dashboard/news-board';
 import { AIPredictor } from '@/components/dashboard/ai-predictor';
 import { ScenarioChecker } from '@/components/dashboard/scenario-checker';
-import { AlertTriangle, MapPin, Star } from 'lucide-react';
+import { AlertTriangle, MapPin, Star, Trash2 } from 'lucide-react';
 import { LocationDialog } from '@/components/location-dialog';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -35,64 +35,59 @@ export default function DashboardPage() {
   const [locationName, setLocationName] = useState<string | null>(null);
   const [savedLocations, setSavedLocations] = useState<SavedLocation | null>(null);
   const [loading, setLoading] = useState(true);
-  // Key for re-rendering child components
   const [locationVersion, setLocationVersion] = useState(0);
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/');
-    }
-  }, [user, authLoading, router]);
-  
   const fetchAndSetLocationData = async (uid: string) => {
     if (firestore) {
       setLoading(true);
       const userRef = doc(firestore, 'users', uid);
       const docSnap = await getDoc(userRef);
 
-      if (docSnap.exists() && docSnap.data().location) {
+      if (docSnap.exists()) {
         const userData = docSnap.data();
-        const userLocation = userData.location as Location;
-        setLocation(userLocation);
-        setSavedLocations(userData.savedLocations || {});
-        
-        if (userData.currentLocationName) {
-            setLocationName(userData.currentLocationName);
-        } else if (userData.savedLocations?.home) {
-            setLocationName(userData.savedLocations.home);
+        if (userData.location) {
+          const userLocation = userData.location as Location;
+          setLocation(userLocation);
+          setSavedLocations(userData.savedLocations || {});
+          
+          if (userData.currentLocationName) {
+              setLocationName(userData.currentLocationName);
+          } else {
+             await reverseGeocode(userLocation.latitude, userLocation.longitude);
+          }
+          setLocationVersion(v => v + 1); // Force re-render
         } else {
-           await reverseGeocode(userLocation.latitude, userLocation.longitude);
+            router.push('/');
         }
       } else {
-        // If no location data, redirect to home to set it.
         router.push('/');
       }
       setLoading(false);
-      setLocationVersion(v => v + 1); // Increment version to force re-render
     }
   };
 
   useEffect(() => {
-    if (user) {
+    if (!authLoading && !user) {
+      router.push('/');
+    } else if(user) {
       fetchAndSetLocationData(user.uid);
     }
-  }, [user]);
+  }, [user, authLoading, router]);
 
   const reverseGeocode = async (lat: number, lon: number) => {
     try {
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
         const data = await response.json();
-        const name = data && data.display_name ? data.display_name : `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
-        setLocationName(name); // Set state for immediate UI update
+        const name = data?.display_name || `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
+        setLocationName(name); 
         return name;
     } catch (error) {
         console.error("Reverse geocoding failed:", error);
         const name = `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
-        setLocationName(name); // Set state for immediate UI update
+        setLocationName(name);
         return name;
     }
   };
-
 
   const handleLocationUpdate = async (position: GeolocationPosition, locationNameToSave?: string) => {
     if (user && firestore) {
@@ -116,7 +111,7 @@ export default function DashboardPage() {
       
       try {
         await setDoc(userRef, userData, { merge: true });
-        await fetchAndSetLocationData(user.uid); // Re-fetch all data to ensure consistency
+        await fetchAndSetLocationData(user.uid); 
         toast({ title: "Location Updated", description: `Now showing data for ${newLocationName}` });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -157,20 +152,38 @@ export default function DashboardPage() {
                 }
                 
                 await setDoc(userRef, userData, { merge: true });
-                await fetchAndSetLocationData(user.uid); // Re-fetch all data
+                await fetchAndSetLocationData(user.uid); 
                 toast({ title: "Location Updated", description: `Now showing data for ${address}` });
             } else {
                 toast({ variant: "destructive", title: "Geocoding Failed", description: "Could not find coordinates for the address." });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Geocoding or Firestore update failed:", error);
-            toast({ variant: "destructive", title: "Error", description: "Failed to set manual location." });
+            // This error might also be a Firestore security rule error.
+            if(error.name !== 'FirestorePermissionError'){
+              toast({ variant: "destructive", title: "Error", description: "Failed to set manual location. Could not fetch resource." });
+            }
         } finally {
             setLoading(false);
         }
     }
   };
 
+  const handleDeleteLocation = async (locationKey: string) => {
+      if (user && firestore && savedLocations) {
+          const newSavedLocations = { ...savedLocations };
+          delete newSavedLocations[locationKey];
+          
+          const userRef = doc(firestore, 'users', user.uid);
+          try {
+            await setDoc(userRef, { savedLocations: newSavedLocations }, { merge: true });
+            setSavedLocations(newSavedLocations);
+            toast({ title: "Location Deleted", description: `"${locationKey}" has been removed from your saved locations.` });
+          } catch(e) {
+             toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the location." });
+          }
+      }
+  };
 
   if (authLoading || loading) {
     return (
@@ -205,7 +218,7 @@ export default function DashboardPage() {
                         {locationName ? `Showing data for: ${locationName}` : 'Loading location...'}
                     </CardDescription>
                 </div>
-                 <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation} allowSave={true}>
+                <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation} allowSave={true}>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline">
@@ -213,20 +226,28 @@ export default function DashboardPage() {
                                 Change Location
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuContent align="end" className="w-64">
                             <DropdownMenuLabel>Switch Location</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                              {savedLocations && Object.entries(savedLocations).map(([key, value]) => (
-                                <DropdownMenuItem key={key} onSelect={() => handleManualLocation(value)}>
-                                    <Star className="mr-2 h-4 w-4 text-yellow-400"/>
-                                    <span>{key} ({value.substring(0,20)}...)</span>
+                                <DropdownMenuItem key={key} onSelect={() => handleManualLocation(value)} className="flex justify-between items-center">
+                                    <div className="flex items-center">
+                                        <Star className="mr-2 h-4 w-4 text-yellow-400"/>
+                                        <span className="flex flex-col">
+                                            <span className="font-semibold">{key}</span>
+                                            <span className="text-xs text-muted-foreground">{value.substring(0,25)}...</span>
+                                        </span>
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleDeleteLocation(key); }}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
                                 </DropdownMenuItem>
                             ))}
                             {savedLocations && Object.keys(savedLocations).length > 0 && <DropdownMenuSeparator />}
                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }}>
                                  <div className="w-full">
                                     <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation} allowSave={true}>
-                                        <Button variant="ghost" className="w-full justify-start p-0 h-auto font-normal">Add/Edit Location</Button>
+                                        <Button variant="ghost" className="w-full justify-start p-0 h-auto font-normal">Add/Change Location</Button>
                                     </LocationDialog>
                                  </div>
                             </DropdownMenuItem>
