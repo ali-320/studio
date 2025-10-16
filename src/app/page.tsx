@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Shield, UserPlus, HandHelping, LogIn, MapPin } from 'lucide-react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
 import { LocationDialog } from '@/components/location-dialog';
 import { useRouter } from 'next/navigation';
@@ -68,7 +68,7 @@ export default function Home() {
         .catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
               path: userRef.path,
-              operation: 'update',
+              operation: 'write',
               requestResourceData: userData,
             } satisfies SecurityRuleContext);
 
@@ -109,7 +109,7 @@ export default function Home() {
         .catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
               path: userRef.path,
-              operation: 'update',
+              operation: 'write',
               requestResourceData: userData,
             } satisfies SecurityRuleContext);
 
