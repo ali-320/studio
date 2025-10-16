@@ -46,7 +46,14 @@ const getNewsFlow = ai.defineFlow(
         outputSchema: GetNewsOutputSchema,
     },
     async (location) => {
-        const { output } = await getNewsPrompt(location);
-        return output!;
+        try {
+            const { output } = await getNewsPrompt(location);
+            // Ensure we return a valid structure even if the AI output is empty
+            return output || { articles: [] };
+        } catch (error) {
+            console.error("Error in getNewsFlow:", error);
+            // Return an empty list on failure to prevent client-side crashes
+            return { articles: [] };
+        }
     }
 );
