@@ -6,21 +6,33 @@ import { Loader } from '@/components/ui/loader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Shield, UserPlus, HandHelping, LogIn, MapPin } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
 import { LocationDialog } from '@/components/location-dialog';
+import { useRouter } from 'next/navigation';
+
 
 export default function Home() {
   const { user, loading, firestore, signInAnonymously } = useFirebase();
   const [isLocationSet, setIsLocationSet] = useState(false);
   const [locationName, setLocationName] = useState<string | null>(null);
+  const router = useRouter();
   
   useEffect(() => {
     if (!loading && !user) {
       signInAnonymously?.();
     }
-  }, [user, loading, signInAnonymously]);
+    if (user && firestore) {
+      const userRef = doc(firestore, 'users', user.uid);
+      getDoc(userRef).then(docSnap => {
+        if (docSnap.exists() && docSnap.data().location) {
+          setIsLocationSet(true);
+          router.push('/dashboard');
+        }
+      })
+    }
+  }, [user, loading, signInAnonymously, firestore, router]);
 
   const handleLocationUpdate = async (position: GeolocationPosition) => {
     if (user && firestore) {
@@ -48,6 +60,7 @@ export default function Home() {
         }
         
         setIsLocationSet(true);
+        router.push('/dashboard');
       } catch (error) {
         console.error("Error updating location:", error);
         toast({
@@ -78,6 +91,7 @@ export default function Home() {
           title: "Location Set Manually",
           description: `Your location has been set to ${address}.`,
         });
+        router.push('/dashboard');
        } catch (error) {
         console.error("Error updating manual location:", error);
          toast({
@@ -90,11 +104,11 @@ export default function Home() {
   };
 
 
-  if (loading) {
+  if (loading || isLocationSet) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center space-y-4">
         <Loader />
-        <p className="text-muted-foreground">Authenticating...</p>
+        <p className="text-muted-foreground">{isLocationSet ? 'Redirecting to dashboard...' : 'Authenticating...'}</p>
       </div>
     );
   }
@@ -115,30 +129,15 @@ export default function Home() {
               <CardHeader>
                 <CardTitle>Welcome, Resident!</CardTitle>
                 <CardDescription>
-                  {isLocationSet 
-                    ? `Location set to: ${locationName}`
-                    : "Please set your location to receive localized alerts."}
+                  {"Please set your location to receive localized alerts."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {isLocationSet ? (
-                  <Card className="bg-green-50 border border-green-200">
-                      <CardHeader className="flex flex-row items-center justify-between pb-2">
-                          <CardTitle className="text-lg font-medium text-green-800">All Clear</CardTitle>
-                          <Shield className="h-6 w-6 text-green-600" />
-                      </CardHeader>
-                      <CardContent>
-                          <p className="text-3xl font-bold text-green-700">Risk Level: Low</p>
-                          <p className="text-xs text-green-500">No immediate flood threats in your area.</p>
-                      </CardContent>
-                  </Card>
-                ) : (
-                   <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation}>
-                      <Button className="w-full h-20">
-                          <MapPin className="mr-2 h-5 w-5"/> Set Your Location
-                      </Button>
-                   </LocationDialog>
-                )}
+                <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation}>
+                    <Button className="w-full h-20">
+                        <MapPin className="mr-2 h-5 w-5"/> Set Your Location
+                    </Button>
+                </LocationDialog>
                 
                 <div className="grid gap-4 md:grid-cols-2">
                     <Button className="w-full h-20" disabled>
@@ -157,7 +156,7 @@ export default function Home() {
               <CardHeader>
                 <CardTitle>Get Started</CardTitle>
                 <CardDescription>Sign in to report incidents and receive alerts.</CardDescription>
-              </CardHeader>
+              </header>
               <CardContent>
                 <Button className="w-full h-20" onClick={signInAnonymously} disabled={loading}>
                   <LogIn className="mr-2 h-5 w-5" /> Anonymous Login
