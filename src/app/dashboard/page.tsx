@@ -184,7 +184,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDeleteLocation = async (locationKey: string) => {
+  const handleDeleteLocation = (locationKey: string) => {
       if (user && firestore && savedLocations) {
           const userRef = doc(firestore, 'users', user.uid);
           
@@ -193,7 +193,7 @@ export default function DashboardPage() {
           
           setDoc(userRef, { savedLocations: newSavedLocations }, { merge: true })
             .then(() => {
-              fetchAndSetLocationData(user.uid);
+              setSavedLocations(newSavedLocations); // Immediately update local state
               toast({ title: "Location Deleted", description: `"${locationKey}" has been removed from your saved locations.` });
             })
             .catch((serverError) => {
@@ -298,5 +298,3 @@ export default function DashboardPage() {
     </main>
   );
 }
-
-    
