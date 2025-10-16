@@ -253,8 +253,8 @@ export default function DashboardPage() {
                         <DropdownMenuLabel>Switch Location</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                          {savedLocations && Object.entries(savedLocations).map(([key, value]) => (
-                            <DropdownMenuItem key={key} onSelect={() => handleManualLocation(value)} className="flex justify-between items-center">
-                                <div className="flex items-center">
+                            <DropdownMenuItem key={key} onSelect={() => handleManualLocation(value)} className="flex justify-between items-center pr-2">
+                                <div className="flex items-center gap-2">
                                     <Star className="mr-2 h-4 w-4 text-yellow-400"/>
                                     <span className="flex flex-col">
                                         <span className="font-semibold">{key}</span>
@@ -298,3 +298,5 @@ export default function DashboardPage() {
     </main>
   );
 }
+
+    
