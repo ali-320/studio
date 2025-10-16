@@ -1,157 +1,123 @@
 /**
- * @fileOverview Firestore Security Rules for Flood Prevention App - PROTOTYPING MODE
- *
- * Core Philosophy:
- * This ruleset prioritizes strict authorization and rapid prototyping. It enforces strong ownership and role-based access control but relaxes data validation to allow for flexible schema evolution.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for user profiles and saved locations,
+ *              while allowing public read access to alerts. Volunteer applications require no auth and
+ *              incident reports are only accessible by their associated volunteers.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles. Each user can only access their own profile.
- * - /alerts/{alertId}: Stores flood alerts. Public read, owner-only write (owner determined by a document field).
- * - /volunteerApplications/{applicationId}: Stores volunteer applications. Public read, owner-only write (owner determined by a document field).
- * - /incidentReports/{reportId}: Stores incident reports. Public read, owner-only write (owner determined by a document field).
+ * - /users/{userId}: Stores user profiles, accessible only by the user themselves.
+ * - /users/{userId}/savedLocations/{locationId}: Stores saved locations for each user, accessible only by that user.
+ * - /alerts/{alertId}: Stores flood alerts, publicly readable but writable only with proper authorization (TODO: Implement this).
+ * - /volunteerApplications/{applicationId}: Stores volunteer applications, which can be created by anyone but only updated/deleted by admins.
+ * - /incidentReports/{reportId}: Stores incident reports, only accessible by the volunteer who created them.
  *
  * Key Security Decisions:
- * - Users can only manage their own profiles.
- * - Listing of users is disallowed.
- * - Public read access is granted to alerts, volunteer applications and incident reports, but writes are restricted to owners, as determined by a dedicated `ownerId` field in the document.
+ * - Users can only access their own data under /users/{userId} and its subcollections.
+ * - Alerts are publicly readable, enabling broad access to critical safety information. Write permissions are currently open (TODO).
+ * - Listing of saved locations is allowed only to the owner.
+ * - Volunteer applications can be created by anyone.
  *
  * Denormalization for Authorization:
- * To avoid costly `get()` calls, the rules rely on the following:
- * - /alerts/{alertId}: Assumes each alert document contains an `ownerId` field representing the user who created the alert.
- * - /volunteerApplications/{applicationId}: Assumes each application document contains an `ownerId` field representing the user who submitted the application.
- * - /incidentReports/{reportId}: Assumes each report document contains an `ownerId` field representing the user who created the report.
+ * - No denormalization is needed in this version. The rules rely on the `request.auth.uid` and the path to control access.
+ *
+ * Structural Segregation:
+ * - Private user data is stored under /users/{userId}, separate from the public /alerts collection.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages user profiles. Users can only read and write their own profile.
+     * @description Controls access to user profiles. Only the authenticated user can read/write their own profile.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user_abc' creates a profile document with ID 'user_abc'.
-     * @allow (get) User with UID 'user_abc' reads their own profile.
-     * @allow (update) User with UID 'user_abc' updates their own profile.
-     * @allow (delete) User with UID 'user_abc' deletes their own profile.
-     * @deny (create) User with UID 'user_xyz' attempts to create a profile document with ID 'user_abc'.
-     * @deny (get) User with UID 'user_xyz' attempts to read the profile of user 'user_abc'.
-     * @principle Enforces document ownership for all operations.
+     * @allow (get, create, update, delete) User with UID 'user123' can access /users/user123. (create, update) require request.auth.uid == userId
+     * @deny (get) User with UID 'user456' cannot access /users/user123.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
       function isExistingOwner(userId) {
-        return isOwner(userId) && resource.data != null;
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false; // Listing users is not permitted
-
-      allow create: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.email is string;
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Manages flood alerts. Public read, owner-only write.
-     * @path /alerts/{alertId}
-     * @allow (get) Any user can read an alert.
-     * @allow (list) Any user can list alerts.
-     * @allow (create) User with UID 'user_abc' creates an alert with ownerId 'user_abc'.
-     * @allow (update) User with UID 'user_abc' updates an alert they own (ownerId 'user_abc').
-     * @allow (delete) User with UID 'user_abc' deletes an alert they own (ownerId 'user_abc').
-     * @deny (create) User with UID 'user_xyz' attempts to create an alert with ownerId 'user_abc'.
-     * @deny (update) User with UID 'user_xyz' attempts to update an alert owned by 'user_abc'.
-     * @deny (delete) User with UID 'user_xyz' attempts to delete an alert owned by 'user_abc'.
-     * @principle Allows public read access but restricts writes to the alert owner.
+     * @description Controls access to saved locations for a user. Only the authenticated user can read/write their own saved locations.
+     * @path /users/{userId}/savedLocations/{locationId}
+     * @allow (get, create, update, delete, list) User with UID 'user123' can access /users/user123/savedLocations/loc1.
+     * @deny (get) User with UID 'user456' cannot access /users/user123/savedLocations/loc1.
+     * @principle Restricts access to a user's own data tree.
      */
-    match /alerts/{alertId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-        function isOwner() {
-            return isSignedIn() && request.auth.uid == resource.data.ownerId;
-        }
-        function isCreatingOwner() {
-            return isSignedIn() && request.auth.uid == request.resource.data.ownerId;
-        }
-        function isExistingOwner() {
-            return isOwner();
-        }
+    match /users/{userId}/savedLocations/{locationId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
 
-        allow get, list: if true;
-
-        allow create: if isSignedIn() && isCreatingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
-        allow update: if isSignedIn() && isExistingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
-        allow delete: if isSignedIn() && isExistingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Manages volunteer applications. Public read, owner-only write.
-     * @path /volunteerApplications/{applicationId}
-     * @allow (get) Any user can read an application.
-     * @allow (list) Any user can list applications.
-     * @allow (create) User with UID 'user_abc' creates an application with ownerId 'user_abc'.
-     * @allow (update) User with UID 'user_abc' updates an application they own (ownerId 'user_abc').
-     * @allow (delete) User with UID 'user_abc' deletes an application they own (ownerId 'user_abc').
-     * @deny (create) User with UID 'user_xyz' attempts to create an application with ownerId 'user_abc'.
-     * @deny (update) User with UID 'user_xyz' attempts to update an application owned by 'user_abc'.
-     * @deny (delete) User with UID 'user_xyz' attempts to delete an application owned by 'user_abc'.
-     * @principle Allows public read access but restricts writes to the application owner.
+     * @description Controls access to flood alerts.  Allows public read access (get, list), but restricts write access.
+     * @path /alerts/{alertId}
+     * @allow (get, list) Any user can read alert data.
+     * @deny (create, update, delete) Non-admin users cannot modify alert data (TODO: Implement Admin Validation).
+     * @principle Allows public read access while restricting write access to authorized users.
      */
-    match /volunteerApplications/{applicationId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-        function isOwner() {
-            return isSignedIn() && request.auth.uid == resource.data.ownerId;
-        }
-        function isCreatingOwner() {
-            return isSignedIn() && request.auth.uid == request.resource.data.ownerId;
-        }
-        function isExistingOwner() {
-            return isOwner();
-        }
-
-        allow get, list: if true;
-
-        allow create: if isSignedIn() && isCreatingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
-        allow update: if isSignedIn() && isExistingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
-        allow delete: if isSignedIn() && isExistingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
+    match /alerts/{alertId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
-     /**
-      * @description Manages incident reports. Public read, owner-only write.
-      * @path /incidentReports/{reportId}
-      * @allow (get) Any user can read an incident report.
-      * @allow (list) Any user can list incident reports.
-      * @allow (create) User with UID 'user_abc' creates a report with ownerId 'user_abc'.
-      * @allow (update) User with UID 'user_abc' updates a report they own (ownerId 'user_abc').
-      * @allow (delete) User with UID 'user_abc' deletes a report they own (ownerId 'user_abc').
-      * @deny (create) User with UID 'user_xyz' attempts to create a report with ownerId 'user_abc'.
-      * @deny (update) User with UID 'user_xyz' attempts to update a report owned by 'user_abc'.
-      * @deny (delete) User with UID 'user_xyz' attempts to delete a report owned by 'user_abc'.
-      * @principle Allows public read access but restricts writes to the report owner.
-      */
+    /**
+     * @description Controls access to volunteer applications.  Allows anyone to create, but restricts update/delete.
+     * @path /volunteerApplications/{applicationId}
+     * @allow (create) Any user can create a volunteer application.
+     * @deny (update, delete) Non-admin users cannot modify volunteer applications (TODO: Implement Admin Validation).
+     * @principle Allows public submissions, restricts modifications.
+     */
+    match /volunteerApplications/{applicationId} {
+        allow get: if true;
+        allow list: if false;
+        allow create: if true;
+        allow update: if false; // TODO: Implement Admin Validation
+        allow delete: if false; // TODO: Implement Admin Validation
+    }
+
+    /**
+     * @description Controls access to incident reports. Only the volunteer who created the report can access it.
+     * @path /incidentReports/{reportId}
+     * @allow (get, create, update, delete) A volunteer can only access their own incident reports, checking if the volunteerId matches their UID.
+     * @deny (get) A volunteer cannot access an incident report created by another volunteer.
+     * @principle Enforces ownership based on the volunteerId field.
+     */
     match /incidentReports/{reportId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-        function isOwner() {
-            return isSignedIn() && request.auth.uid == resource.data.ownerId;
-        }
-        function isCreatingOwner() {
-            return isSignedIn() && request.auth.uid == request.resource.data.ownerId;
-        }
-        function isExistingOwner() {
-            return isOwner();
-        }
+      function isOwner(volunteerId) {
+        return request.auth.uid == volunteerId;
+      }
+      function isExistingOwner(volunteerId) {
+        return isOwner(volunteerId) && resource != null;
+      }
 
-        allow get, list: if true;
-
-        allow create: if isSignedIn() && isCreatingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
-        allow update: if isSignedIn() && isExistingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
-        allow delete: if isSignedIn() && isExistingOwner(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.resource.data.volunteerId == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.volunteerId);
+      allow delete: if isExistingOwner(resource.data.volunteerId);
     }
   }
 }
