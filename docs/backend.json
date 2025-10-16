@@ -14,6 +14,11 @@
           "type": "string",
           "description": "The user's full name."
         },
+        "email": {
+            "type": "string",
+            "format": "email",
+            "description": "The user's email address."
+        },
         "phone": {
           "type": "string",
           "description": "The user's phone number."
@@ -44,7 +49,7 @@
             "description": "Firebase Cloud Messaging token for push notifications."
         }
       },
-      "required": ["role"]
+      "required": ["role", "email"]
     },
     "alert": {
       "title": "Alert",
@@ -114,7 +119,7 @@
     }
   },
   "auth": {
-    "providers": ["phone"]
+    "providers": ["email"]
   },
   "firestore": {
     "/users/{userId}": {

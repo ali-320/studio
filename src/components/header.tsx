@@ -26,7 +26,6 @@ export function Header() {
         <div className="flex items-center gap-2">
           <nav className="hidden md:flex items-center gap-4">
               <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">Dashboard</Link>
-              <Link href="/report" className="text-sm text-muted-foreground hover:text-foreground">Report</Link>
               {user && <Link href="/profile" className="text-sm text-muted-foreground hover:text-foreground">Profile</Link>}
           </nav>
            <div className="hidden md:block">
@@ -63,9 +62,6 @@ export function Header() {
               </Link>
               <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
                 Dashboard
-              </Link>
-              <Link href="/report" className="text-muted-foreground hover:text-foreground">
-                Report Incident
               </Link>
               { user && <Link href="/profile" className="text-muted-foreground hover:text-foreground">
                 Profile

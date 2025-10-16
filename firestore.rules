@@ -1,99 +1,78 @@
-/**
- * @fileoverview Firestore Security Rules for the Flood App Prototype.
- *
- * Core Philosophy:
- * This ruleset prioritizes user data protection. It enforces a strict user-ownership model for user profiles and requires authentication for creating or modifying alerts, volunteer applications, and incident reports.
- *
- * Data Structure:
- * - /users/{userId}: Stores individual user profiles, accessible only to the authenticated user with a matching UID.
- * - /alerts/{alertId}: Stores flood alerts. Publicly readable, but write access is restricted to authenticated users.
- * - /volunteerApplications/{applicationId}: Stores volunteer applications. Write access is restricted to authenticated users.
- * - /incidentReports/{reportId}: Stores incident reports. Write access is restricted to authenticated users.
- *
- * Key Security Decisions:
- * - User listing is disallowed to protect privacy.
- * - Alerts are publicly readable to maximize information dissemination during emergencies, but write access is restricted.
- *
- * Denormalization for Authorization:
- * - To secure `/alerts/{alertId}`, consider adding an `authorId` field to the Alert entity and storing the user's UID when the alert is created.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects user profiles, ensuring only the authenticated user can access their own data.
+     * @description Controls access to user profiles.
      * @path /users/{userId}
-     * @allow (create) - User with UID 'user_abc' can create /users/user_abc
-     * @allow (get, list, update, delete) - User with UID 'user_abc' can access their own profile at /users/user_abc.
-     * @deny (create) - User with UID 'user_xyz' cannot create /users/user_abc.
-     * @deny (get, list, update, delete) - User with UID 'user_xyz' cannot access /users/user_abc.
-     * @principle Enforces document ownership for all operations.  Validates relational integrity on create.
+     * @allow (create) - User with UID 'user123' can create their own profile.
+     *          request.auth.uid == 'user123' and request.resource.data.id == 'user123'
+     * @allow (get, list, update, delete) - User with UID 'user123' can read/write their own profile.
+     *          request.auth.uid == 'user123' and resource.data.id == 'user123'
+     * @deny (create) - User with UID 'user123' cannot create a profile for 'user456'.
+     *       request.auth.uid == 'user123' and request.resource.data.id == 'user456'
+     * @deny (get, list, update, delete) - User with UID 'user123' cannot read/write profile for 'user456'.
+     *       request.auth.uid == 'user123' and resource.data.id == 'user456'
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && exists(resource);
+      }
+
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow list: if false; // User listing is not allowed.
+      allow create: if isOwner(userId) && request.auth.uid == userId;
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Manages flood alerts, allowing public read access but restricting write access to authenticated users.
+     * @description Controls access to flood alerts.
      * @path /alerts/{alertId}
-     * @allow (get, list) - Any user (or unauthenticated user) can read any alert.
-     * @allow (create) - An authenticated user can create an alert.
-     * @deny (create, update, delete) - Unauthenticated users cannot create/update/delete alerts.
-     * @deny (update, delete) - Non-owners cannot modify alerts.
-     * @principle Provides public read access while controlling write access via authentication.
+     * @allow (get, list) - Any user can read alerts.
+     * @deny (create, update, delete) - Only authorized users (e.g., admins) can modify alerts. // TODO: Define which role
+     * @principle Allows public read access but restricts write access.
      */
     match /alerts/{alertId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin role validation to allow create, update, delete
     }
 
     /**
-     * @description Handles volunteer applications, restricting access to authenticated users.
+     * @description Controls access to volunteer applications.
      * @path /volunteerApplications/{applicationId}
-     * @allow (create) - Authenticated user can create a volunteer application.
-     * @deny (get, list, update, delete) - Only authenticated users can create applications. Other operations are denied.
-     * @principle Requires authentication for all operations.
+     * @allow (create) - User with UID 'user123' can create their own application where userId == 'user123'.
+     *         request.auth.uid == 'user123' && request.resource.data.userId == 'user123'
+     * @deny (get, list, update, delete) - Only admins can access or modify applications. // TODO: Define Admin Role
+     * @principle Restricts creation to the applicant and requires admin role for management.
      */
     match /volunteerApplications/{applicationId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      function isApplicant(applicationId) {
+        return request.auth.uid == request.resource.data.userId;
+      }
+
+      allow get, list: if false; // TODO: Implement admin role check here.
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow update, delete: if false; // TODO: Implement admin role check here.
     }
 
     /**
-     * @description Manages incident reports, restricting access to authenticated users.
+     * @description Controls access to incident reports.
      * @path /incidentReports/{reportId}
-     * @allow (create) - Authenticated user can create an incident report.
-     * @deny (get, list, update, delete) - Only authenticated users can create reports. Other operations are denied.
-     * @principle Requires authentication for all operations.
+     * @deny (get, list, create, update, delete) - Only authorized volunteers can create reports related to the alert. // TODO: Define which role is authorised
+     * @principle Restricts access to authorized volunteers.
      */
     match /incidentReports/{reportId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow get, list, create, update, delete: if false; // TODO: Add volunteer role validation and alert association to allow access
     }
   }
 
-  // Helper functions
   function isSignedIn() {
     return request.auth != null;
-  }
-
-  function isOwner(userId) {
-    return request.auth.uid == userId;
-  }
-
-  function isExistingOwner(userId) {
-    return isOwner(userId) && resource != null;
   }
 }
