@@ -8,6 +8,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const NewsItemSchema = z.object({
@@ -30,6 +31,7 @@ export async function getNewsForLocation(location: string): Promise<GetNewsOutpu
 
 const getNewsPrompt = ai.definePrompt({
     name: 'getNewsPrompt',
+    model: googleAI('gemini-1.5-flash'),
     input: { schema: z.string() },
     output: { schema: GetNewsOutputSchema },
     prompt: `You are a helpful news aggregator. Find 4 recent and authentic news articles related to potential flooding, heavy rainfall, or severe weather warnings for the following location: {{{input}}}.
