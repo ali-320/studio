@@ -32,6 +32,7 @@ interface SavedLocation {
 export default function DashboardPage() {
   const { user, firestore, loading: authLoading } = useFirebase();
   const router = useRouter();
+  const { toast } = useToast();
   const [location, setLocation] = useState<Location | null>(null);
   const [locationName, setLocationName] = useState<string | null>(null);
   const [savedLocations, setSavedLocations] = useState<SavedLocation | null>(null);
