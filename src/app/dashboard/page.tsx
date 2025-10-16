@@ -35,6 +35,8 @@ export default function DashboardPage() {
   const [locationName, setLocationName] = useState<string | null>(null);
   const [savedLocations, setSavedLocations] = useState<SavedLocation | null>(null);
   const [loading, setLoading] = useState(true);
+  // Key for re-rendering child components
+  const [locationVersion, setLocationVersion] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -62,9 +64,11 @@ export default function DashboardPage() {
            await reverseGeocode(userLocation.latitude, userLocation.longitude);
         }
       } else {
+        // If no location data, redirect to home to set it.
         router.push('/');
       }
       setLoading(false);
+      setLocationVersion(v => v + 1); // Increment version to force re-render
     }
   };
 
@@ -79,12 +83,12 @@ export default function DashboardPage() {
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
         const data = await response.json();
         const name = data && data.display_name ? data.display_name : `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
-        setLocationName(name);
+        setLocationName(name); // Set state for immediate UI update
         return name;
     } catch (error) {
         console.error("Reverse geocoding failed:", error);
         const name = `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
-        setLocationName(name);
+        setLocationName(name); // Set state for immediate UI update
         return name;
     }
   };
@@ -103,15 +107,16 @@ export default function DashboardPage() {
       };
 
       if (locationNameToSave) {
+          const currentSaved = savedLocations || {};
           userData.savedLocations = {
-              ...savedLocations,
+              ...currentSaved,
               [locationNameToSave]: newLocationName
           }
       }
       
       try {
         await setDoc(userRef, userData, { merge: true });
-        await fetchAndSetLocationData(user.uid); // Re-fetch all data
+        await fetchAndSetLocationData(user.uid); // Re-fetch all data to ensure consistency
         toast({ title: "Location Updated", description: `Now showing data for ${newLocationName}` });
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
@@ -127,6 +132,7 @@ export default function DashboardPage() {
 
  const handleManualLocation = async (address: string, locationNameToSave?: string) => {
      if (user && firestore) {
+        setLoading(true);
         try {
             const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
             const data = await response.json();
@@ -137,13 +143,15 @@ export default function DashboardPage() {
                 const longitude = parseFloat(lon);
                 
                 const userRef = doc(firestore, 'users', user.uid);
+                
+                const currentSaved = savedLocations || {};
                 const userData: any = {
                     location: { latitude, longitude },
                     currentLocationName: address,
                 };
                 if (locationNameToSave) {
                     userData.savedLocations = {
-                        ...savedLocations,
+                        ...currentSaved,
                         [locationNameToSave]: address
                     }
                 }
@@ -157,6 +165,8 @@ export default function DashboardPage() {
         } catch (error) {
             console.error("Geocoding or Firestore update failed:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to set manual location." });
+        } finally {
+            setLoading(false);
         }
     }
   };
@@ -212,8 +222,8 @@ export default function DashboardPage() {
                                     <span>{key} ({value.substring(0,20)}...)</span>
                                 </DropdownMenuItem>
                             ))}
-                            <DropdownMenuSeparator />
-                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                            {savedLocations && Object.keys(savedLocations).length > 0 && <DropdownMenuSeparator />}
+                             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }}>
                                  <div className="w-full">
                                     <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation} allowSave={true}>
                                         <Button variant="ghost" className="w-full justify-start p-0 h-auto font-normal">Add/Edit Location</Button>
@@ -226,7 +236,7 @@ export default function DashboardPage() {
             </CardHeader>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" key={locationVersion}>
           {/* Main content column */}
           <div className="lg:col-span-2 space-y-6">
             <WeatherCharts />

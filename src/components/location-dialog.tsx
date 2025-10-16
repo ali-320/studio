@@ -38,6 +38,14 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
       });
       return;
     }
+     if (allowSave && !locationName) {
+      toast({
+        variant: 'destructive',
+        title: 'Name Required',
+        description: 'Please provide a name for the location you are saving.',
+      });
+      return;
+    }
 
     setIsFetching(true);
     navigator.geolocation.getCurrentPosition(
@@ -72,6 +80,11 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
           toast({ variant: 'destructive', title: 'Invalid Address', description: 'Please enter a valid address.' });
           return;
       }
+       if (allowSave && !locationName) {
+          toast({ variant: 'destructive', title: 'Name Required', description: 'Please provide a name for the location.' });
+          return;
+       }
+      
        if (allowSave && locationName) {
             onManualLocationSubmit(manualAddress, locationName);
             toast({ title: 'Location Saved!', description: `Saved "${locationName}" successfully.` });
@@ -102,9 +115,9 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
           }
       }}>
         <DialogHeader>
-          <DialogTitle>Set Location</DialogTitle>
+          <DialogTitle>{allowSave ? 'Add/Edit Location' : 'Set Location'}</DialogTitle>
           <DialogDescription>
-            {allowSave ? "Save a new location for quick access." : "Use your current location or enter one manually."}
+            {allowSave ? "Save a new location by name for quick access later." : "Use your current location or enter one manually."}
           </DialogDescription>
         </DialogHeader>
         
