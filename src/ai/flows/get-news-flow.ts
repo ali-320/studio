@@ -3,14 +3,14 @@
  * @fileOverview A Genkit flow that fetches recent flood-related news for a given location.
  *
  * - getNewsForLocation - A function that calls the AI flow to get news.
- * - NewsItemSchema - The schema for a single news article.
- * - GetNewsOutputSchema - The schema for the list of news articles.
+ * - NewsItem - The type for a single news article.
+ * - GetNewsOutput - The type for the list of news articles.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const NewsItemSchema = z.object({
+const NewsItemSchema = z.object({
     title: z.string().describe('The headline of the news article.'),
     summary: z.string().describe('A brief summary of the news article.'),
     source: z.string().describe('The name of the news source (e.g., "BBC News", "Reuters").'),
@@ -18,7 +18,7 @@ export const NewsItemSchema = z.object({
 });
 export type NewsItem = z.infer<typeof NewsItemSchema>;
 
-export const GetNewsOutputSchema = z.object({
+const GetNewsOutputSchema = z.object({
     articles: z.array(NewsItemSchema),
 });
 export type GetNewsOutput = z.infer<typeof GetNewsOutputSchema>;
