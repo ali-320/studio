@@ -9,11 +9,11 @@ import { Shield, UserPlus, HandHelping, LogIn, MapPin } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
+import { LocationDialog } from '@/components/location-dialog';
 
 export default function Home() {
   const { user, loading, firestore, signInAnonymously } = useFirebase();
-  const [isLocationLoading, setIsLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isLocationSet, setIsLocationSet] = useState(false);
   
   useEffect(() => {
     if (!loading && !user) {
@@ -21,66 +21,63 @@ export default function Home() {
     }
   }, [user, loading, signInAnonymously]);
 
-  useEffect(() => {
-    let watchId: number | null = null;
+  const handleLocationUpdate = async (position: GeolocationPosition) => {
     if (user && firestore) {
-      const requestLocation = () => {
-        setIsLocationLoading(true);
-        setLocationError(null);
-        
-        if (!navigator.geolocation) {
-          setLocationError('Geolocation is not supported by your browser.');
-          setIsLocationLoading(false);
-          return;
-        }
-
-        watchId = navigator.geolocation.watchPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            const userRef = doc(firestore, 'users', user.uid);
-            try {
-              await setDoc(userRef, {
-                location: { latitude, longitude },
-                role: user.isAnonymous ? 'anonymous' : 'registered',
-                status: 'available',
-              }, { merge: true });
-              if(isLocationLoading) setIsLocationLoading(false);
-            } catch (error) {
-              console.error("Error updating location:", error);
-              setLocationError("Could not update your location in our system.");
-               if(isLocationLoading) setIsLocationLoading(false);
-            }
-          },
-          (error) => {
-            console.error('Geolocation error:', error);
-            setLocationError('Location permission denied. Please enable it in your browser settings to receive localized alerts.');
-            setIsLocationLoading(false);
-            toast({
-              variant: 'destructive',
-              title: 'Location Access Denied',
-              description: 'Please enable location permissions for full functionality.',
-            });
-          },
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
-      };
-      requestLocation();
-    }
-
-    return () => {
-      if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
+      const { latitude, longitude } = position.coords;
+      const userRef = doc(firestore, 'users', user.uid);
+      try {
+        await setDoc(userRef, {
+          location: { latitude, longitude },
+          role: user.isAnonymous ? 'anonymous' : 'registered',
+          status: 'available',
+        }, { merge: true });
+        setIsLocationSet(true);
+      } catch (error) {
+        console.error("Error updating location:", error);
+        toast({
+          variant: "destructive",
+          title: "Update Failed",
+          description: "Could not update your location in our system."
+        });
       }
     }
-  }, [user, firestore]);
+  };
 
-  if (loading || (isLocationLoading && !user)) {
+  const handleManualLocation = async (address: string) => {
+     if (user && firestore) {
+      // In a real app, you would geocode the address here.
+      // For now, we'll store the address and placeholder coordinates.
+      console.log("Manual location set to:", address);
+      const userRef = doc(firestore, 'users', user.uid);
+       try {
+        await setDoc(userRef, {
+          savedLocations: { home: address },
+          location: { latitude: 0, longitude: 0 }, // Placeholder
+          role: user.isAnonymous ? 'anonymous' : 'registered',
+          status: 'available',
+        }, { merge: true });
+        setIsLocationSet(true);
+        toast({
+          title: "Location Set Manually",
+          description: `Your location has been set to ${address}.`,
+        });
+       } catch (error) {
+        console.error("Error updating manual location:", error);
+         toast({
+          variant: "destructive",
+          title: "Update Failed",
+          description: "Could not save your manual location."
+        });
+       }
+    }
+  };
+
+
+  if (loading) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center space-y-4">
         <Loader />
-        <p className="text-muted-foreground">
-          {loading ? 'Authenticating...' : 'Acquiring your location...'}
-        </p>
+        <p className="text-muted-foreground">Authenticating...</p>
       </div>
     );
   }
@@ -101,31 +98,29 @@ export default function Home() {
               <CardHeader>
                 <CardTitle>Welcome, Resident!</CardTitle>
                 <CardDescription>
-                  You are signed in anonymously. Your location is being monitored for your safety.
+                  {isLocationSet 
+                    ? "Your location is set. You will receive relevant flood alerts."
+                    : "Please set your location to receive localized alerts."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                 <Card className="bg-green-50 border border-green-200">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium text-green-800">All Clear</CardTitle>
-                        <Shield className="h-6 w-6 text-green-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-bold text-green-700">Risk Level: Low</p>
-                        <p className="text-xs text-green-500">No immediate flood threats in your area.</p>
-                    </CardContent>
-                </Card>
-
-                {locationError && (
-                   <Card className="bg-destructive/10 border-destructive">
-                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                         <CardTitle className="text-lg font-medium text-destructive">Location Error</CardTitle>
-                         <MapPin className="h-6 w-6 text-destructive" />
-                     </CardHeader>
-                     <CardContent>
-                         <p className="text-sm text-destructive">{locationError}</p>
-                     </CardContent>
-                 </Card>
+                {isLocationSet ? (
+                  <Card className="bg-green-50 border border-green-200">
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                          <CardTitle className="text-lg font-medium text-green-800">All Clear</CardTitle>
+                          <Shield className="h-6 w-6 text-green-600" />
+                      </CardHeader>
+                      <CardContent>
+                          <p className="text-3xl font-bold text-green-700">Risk Level: Low</p>
+                          <p className="text-xs text-green-500">No immediate flood threats in your area.</p>
+                      </CardContent>
+                  </Card>
+                ) : (
+                   <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation}>
+                      <Button className="w-full h-20">
+                          <MapPin className="mr-2 h-5 w-5"/> Set Your Location
+                      </Button>
+                   </LocationDialog>
                 )}
                 
                 <div className="grid gap-4 md:grid-cols-2">
