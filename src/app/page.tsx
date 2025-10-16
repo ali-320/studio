@@ -14,6 +14,7 @@ import { LocationDialog } from '@/components/location-dialog';
 export default function Home() {
   const { user, loading, firestore, signInAnonymously } = useFirebase();
   const [isLocationSet, setIsLocationSet] = useState(false);
+  const [locationName, setLocationName] = useState<string | null>(null);
   
   useEffect(() => {
     if (!loading && !user) {
@@ -31,6 +32,21 @@ export default function Home() {
           role: user.isAnonymous ? 'anonymous' : 'registered',
           status: 'available',
         }, { merge: true });
+
+        // Reverse geocode to get address
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await response.json();
+          if (data && data.display_name) {
+            setLocationName(data.display_name);
+          } else {
+            setLocationName('Current Location');
+          }
+        } catch (geocodeError) {
+            console.error("Reverse geocoding failed:", geocodeError);
+            setLocationName(`Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`);
+        }
+        
         setIsLocationSet(true);
       } catch (error) {
         console.error("Error updating location:", error);
@@ -57,6 +73,7 @@ export default function Home() {
           status: 'available',
         }, { merge: true });
         setIsLocationSet(true);
+        setLocationName(address);
         toast({
           title: "Location Set Manually",
           description: `Your location has been set to ${address}.`,
@@ -99,7 +116,7 @@ export default function Home() {
                 <CardTitle>Welcome, Resident!</CardTitle>
                 <CardDescription>
                   {isLocationSet 
-                    ? "Your location is set. You will receive relevant flood alerts."
+                    ? `Location set to: ${locationName}`
                     : "Please set your location to receive localized alerts."}
                 </CardDescription>
               </CardHeader>
