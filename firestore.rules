@@ -3,97 +3,110 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages access to user profiles.
+     * @description Controls access to user profiles.
      * @path /users/{userId}
-     * @allow (get, list, create, update, delete) User can only access their own profile.
-     *   Example: User with UID 'user123' can read, update, and delete document 'user123'.
-     * @deny (get, list, create, update, delete) User cannot access another user's profile.
-     *   Example: User with UID 'user123' cannot read, update, or delete document 'user456'.
+     * @allow (get, list) User can read their own profile.
+     *    - Auth: { uid: 'user123' }
+     *    - Operation: get
+     *    - Path: /databases/(default)/documents/users/user123
+     * @allow (create, update) User can create or update their own profile.
+     *    - Auth: { uid: 'user123' }
+     *    - Operation: create
+     *    - Path: /databases/(default)/documents/users/user123
+     *    - Request Data: { id: 'user123', name: 'John Doe', role: 'registered' }
+     * @deny (update) User attempts to update someone else's profile.
+     *    - Auth: { uid: 'user123' }
+     *    - Operation: update
+     *    - Path: /databases/(default)/documents/users/otherUser456
+     *    - Request Data: { name: 'Jane Doe' }
+     * @deny (delete) User cannot delete their profile.
+     *    - Auth: { uid: 'user123' }
+     *    - Operation: delete
+     *    - Path: /databases/(default)/documents/users/user123
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
+      // Helper function to check if the user is signed in
       function isSignedIn() {
         return request.auth != null;
       }
 
+      // Helper function to check if the authenticated user is the owner of the document
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
-    }
-
-    /**
-     * @description Manages access to flood alerts.
-     * @path /alerts/{alertId}
-     * @allow (get, list) Alerts are publicly readable.
-     *   Example: Any user can read alert documents.
-     * @deny (create, update, delete) Only authenticated admin users can modify alerts.
-     *   Example: An unauthenticated user or a regular user cannot create, update, or delete alerts.
-     * @principle Public read access with owner-only writes for admins.
-     */
-    match /alerts/{alertId} {
-      function isSignedIn() {
-        return request.auth != null;
+      // Helper function to check if the authenticated user is the owner of the document and the document exists
+      function isExistingOwner(userId) {
+        return isOwner(userId) && existsAfter(/databases/$(database)/documents/users/$(userId));
       }
 
-      function isAdmin() {
-        return request.auth.token.admin == true;
-      }
-
-      allow get: if true;
-      allow list: if true;
-      allow create: if isSignedIn() && isAdmin();
-      allow update: if isSignedIn() && isAdmin();
-      allow delete: if isSignedIn() && isAdmin();
-    }
-
-    /**
-     * @description Manages access to volunteer applications.
-     * @path /volunteerApplications/{applicationId}
-     * @allow (create) Authenticated users can create volunteer applications.
-     *   Example: User with UID 'user123' can create a volunteer application.
-     * @deny (get, list, update, delete) Listing and modification of applications are disallowed.
-     *   Example: No user can list all volunteer applications or modify existing ones.
-     * @principle Restricts access to a user's own data tree.
-     */
-    match /volunteerApplications/{applicationId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if false;
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if false;
+      allow get: if isOwner(userId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isOwner(userId);
       allow delete: if false;
     }
 
     /**
-     * @description Manages access to incident reports.
-     * @path /incidentReports/{reportId}
-     * @allow (create) Authenticated volunteers can create incident reports.
-     * @deny (get, list, update, delete) Listing, getting, updating and deleting of reports are disallowed.
-     * @principle Requires authentication for creating reports.
+     * @description Controls access to flood alerts.
+     * @path /alerts/{alertId}
+     * @allow (get, list) Any user can read alerts.
+     *    - Auth: null
+     *    - Operation: get
+     *    - Path: /databases/(default)/documents/alerts/alert123
+     * @deny (create, update, delete) Only authorized users (e.g., admins) can manage alerts.
+     *    - Auth: { uid: 'user123' }
+     *    - Operation: create
+     *    - Path: /databases/(default)/documents/alerts/alert456
+     *    - Request Data: { location: { latitude: 123, longitude: 456 }, riskScore: 'High', status: 'active', timestamp: timestamp.now() }
+     * @principle Allows public read access while restricting write access to authorized users.
      */
+    match /alerts/{alertId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to volunteer applications.
+     * @path /volunteerApplications/{applicationId}
+     * @allow (create) Any signed-in user can create a volunteer application.
+     *    - Auth: { uid: 'user123' }
+     *    - Operation: create
+     *    - Path: /databases/(default)/documents/volunteerApplications/app123
+     *    - Request Data: { userId: 'user123', name: 'John Doe', expertise: 'First Aid', status: 'pending' }
+     * @deny (get, list, update, delete) Volunteer applications can only be created.
+     *    - Auth: { uid: 'user123' }
+     *    - Operation: update
+     *    - Path: /databases/(default)/documents/volunteerApplications/app123
+     *    - Request Data: { status: 'approved' }
+     * @principle Allows self-creation of volunteer applications but prohibits modification or deletion.
+     */
+    match /volunteerApplications/{applicationId} {
+        allow get, list: if false;
+        allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+        allow update, delete: if false;
+    }
+
+      /**
+       * @description Controls access to incident reports.
+       * @path /incidentReports/{reportId}
+       * @allow (create) Any signed-in user can create an incident report.
+       *    - Auth: { uid: 'user123' }
+       *    - Operation: create
+       *    - Path: /databases/(default)/documents/incidentReports/report123
+       *    - Request Data: { alertId: 'alert123', volunteerId: 'user123', casualties: 0, injuries: 0, safetyStatus: 'Safe', lossEstimate: 1000, timestamp: timestamp.now() }
+       * @deny (get, list, update, delete) Incident reports can only be created.
+       *    - Auth: { uid: 'user123' }
+       *    - Operation: update
+       *    - Path: /databases/(default)/documents/incidentReports/report123
+       *    - Request Data: { casualties: 1 }
+       * @principle Allows creation of incident reports but prohibits modification or deletion.
+       */
     match /incidentReports/{reportId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-
-        function isVolunteer() {
-          return request.auth.token.volunteer == true;
-        }
-
-        allow get: if false;
-        allow list: if false;
-        allow create: if isSignedIn() && isVolunteer();
-        allow update: if false;
-        allow delete: if false;
+        allow get, list: if false;
+        allow create: if isSignedIn();
+        allow update, delete: if false;
     }
   }
 }
