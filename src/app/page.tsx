@@ -109,9 +109,17 @@ export default function Home() {
                     }
                 };
                
-                await setDoc(userRef, userData, { merge: true });
-                setIsLocationSet(true);
-                router.push('/dashboard');
+                setDoc(userRef, userData, { merge: true }).then(() => {
+                    setIsLocationSet(true);
+                    router.push('/dashboard');
+                }).catch((serverError) => {
+                     const permissionError = new FirestorePermissionError({
+                        path: userRef.path,
+                        operation: 'write',
+                        requestResourceData: userData,
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             } else {
                  toast({
                     variant: "destructive",
