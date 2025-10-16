@@ -16,7 +16,7 @@ import { AlertTriangle, MapPin, Star, Trash2 } from 'lucide-react';
 import { LocationDialog } from '@/components/location-dialog';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 
@@ -155,9 +155,17 @@ export default function DashboardPage() {
                     }
                 }
                 
-                await setDoc(userRef, userData, { merge: true });
-                await fetchAndSetLocationData(user.uid); 
-                toast({ title: "Location Updated", description: `Now showing data for ${address}` });
+                setDoc(userRef, userData, { merge: true }).then(async () => {
+                  await fetchAndSetLocationData(user.uid); 
+                  toast({ title: "Location Updated", description: `Now showing data for ${address}` });
+                }).catch(async (serverError) => {
+                    const permissionError = new FirestorePermissionError({
+                      path: userRef.path,
+                      operation: 'update',
+                      requestResourceData: userData,
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             } else {
                 toast({ variant: "destructive", title: "Geocoding Failed", description: "Could not find coordinates for the address." });
             }
@@ -174,17 +182,25 @@ export default function DashboardPage() {
 
   const handleDeleteLocation = async (locationKey: string) => {
       if (user && firestore && savedLocations) {
+          const userRef = doc(firestore, 'users', user.uid);
+          
           const newSavedLocations = { ...savedLocations };
           delete newSavedLocations[locationKey];
           
-          const userRef = doc(firestore, 'users', user.uid);
-          try {
-            await setDoc(userRef, { savedLocations: newSavedLocations }, { merge: true });
-            setSavedLocations(newSavedLocations);
-            toast({ title: "Location Deleted", description: `"${locationKey}" has been removed from your saved locations.` });
-          } catch(e) {
-             toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the location." });
-          }
+          setDoc(userRef, { savedLocations: newSavedLocations }, { merge: true })
+            .then(() => {
+              setSavedLocations(newSavedLocations);
+              toast({ title: "Location Deleted", description: `"${locationKey}" has been removed from your saved locations.` });
+            })
+            .catch((serverError) => {
+                const permissionError = new FirestorePermissionError({
+                  path: userRef.path,
+                  operation: 'update',
+                  requestResourceData: { savedLocations: newSavedLocations },
+                });
+                errorEmitter.emit('permission-error', permissionError);
+                toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the location." });
+            });
       }
   };
 
