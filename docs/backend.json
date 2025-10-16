@@ -31,13 +31,9 @@
           },
           "description": "The user's last known location (GeoPoint)."
         },
-        "savedLocations": {
-            "type": "object",
-            "description": "A map of saved location names to addresses for the user."
-        },
-        "currentLocationName": {
+        "currentLocationAddress": {
             "type": "string",
-            "description": "The display name for the user's current location."
+            "description": "The address for the user's current location."
         },
         "status": {
             "type": "string",
@@ -50,6 +46,18 @@
         }
       },
       "required": ["role", "email"]
+    },
+    "savedLocation": {
+        "title": "Saved Location",
+        "description": "A location saved by a user.",
+        "type": "object",
+        "properties": {
+            "name": { "type": "string", "description": "The user-assigned name for the location (e.g., Home, Office)." },
+            "address": { "type": "string", "description": "The full address of the location." },
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" }
+        },
+        "required": ["name", "address", "latitude", "longitude"]
     },
     "alert": {
       "title": "Alert",
@@ -125,6 +133,10 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/user" },
       "description": "Stores user profiles."
+    },
+    "/users/{userId}/savedLocations/{locationId}": {
+        "schema": { "$ref": "#/entities/savedLocation" },
+        "description": "Stores a user's saved locations."
     },
     "/alerts/{alertId}": {
       "schema": { "$ref": "#/entities/alert" },

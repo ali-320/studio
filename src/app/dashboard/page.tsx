@@ -4,9 +4,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase/client-provider';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, addDoc, query, where } from 'firebase/firestore';
 import { Loader } from '@/components/ui/loader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { WeatherCharts } from '@/components/dashboard/weather-charts';
 import { LiveWeather } from '@/components/dashboard/live-weather';
 import { NewsBoard } from '@/components/dashboard/news-board';
@@ -26,109 +26,112 @@ interface Location {
 }
 
 interface SavedLocation {
-    [key: string]: string;
+    id: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
 }
 
 export default function DashboardPage() {
   const { user, firestore, loading: authLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
-  const [location, setLocation] = useState<Location | null>(null);
-  const [locationName, setLocationName] = useState<string | null>(null);
-  const [savedLocations, setSavedLocations] = useState<SavedLocation | null>(null);
+
+  const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
+  const [currentLocationAddress, setCurrentLocationAddress] = useState<string | null>(null);
+  const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [locationVersion, setLocationVersion] = useState(0);
 
   const fetchAndSetLocationData = async (uid: string) => {
-    if (firestore) {
-      setLoading(true);
-      const userRef = doc(firestore, 'users', uid);
-      const docSnap = await getDoc(userRef);
+    if (!firestore) return;
+    setLoading(true);
 
-      if (docSnap.exists()) {
-        const userData = docSnap.data();
-        if (userData.location) {
-          const userLocation = userData.location as Location;
-          setLocation(userLocation);
-          setSavedLocations(userData.savedLocations || {});
-          
-          if (userData.currentLocationName) {
-              setLocationName(userData.currentLocationName);
-          } else {
-             await reverseGeocode(userLocation.latitude, userLocation.longitude);
-          }
-          setLocationVersion(v => v + 1); // Force re-render of components using the key
+    try {
+        const userRef = doc(firestore, 'users', uid);
+        const userDocSnap = await getDoc(userRef);
+
+        if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            if (userData.location) {
+                setCurrentLocation(userData.location as Location);
+                setCurrentLocationAddress(userData.currentLocationAddress || `Lat: ${userData.location.latitude.toFixed(2)}, Lon: ${userData.location.longitude.toFixed(2)}`);
+
+                const savedLocationsRef = collection(firestore, 'users', uid, 'savedLocations');
+                const savedLocationsSnap = await getDocs(savedLocationsRef);
+                const userSavedLocations = savedLocationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SavedLocation));
+                setSavedLocations(userSavedLocations);
+
+                setLocationVersion(v => v + 1); // Force re-render of components using the key
+            } else {
+                // If user has no location, send them to home to set it.
+                router.push('/');
+            }
         } else {
+            console.error("User document not found.");
             router.push('/');
         }
-      } else {
-        // This case can happen for a newly registered user who hasn't set a location yet.
-        router.push('/');
-      }
-      setLoading(false);
+    } catch (error) {
+        console.error("Error fetching user data:", error);
+        toast({ variant: "destructive", title: "Error", description: "Could not fetch your data." });
+    } finally {
+        setLoading(false);
     }
   };
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
-    } else if(user) {
+    } else if(user && firestore) {
       fetchAndSetLocationData(user.uid);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, firestore]);
 
-  const reverseGeocode = async (lat: number, lon: number) => {
-    try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-        const data = await response.json();
-        const name = data?.display_name || `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
-        setLocationName(name); 
-        return name;
-    } catch (error) {
-        console.error("Reverse geocoding failed:", error);
-        const name = `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
-        setLocationName(name);
-        return name;
-    }
+  const updateUserLocation = async (lat: number, lon: number, address: string) => {
+      if (!user || !firestore) return;
+      const userRef = doc(firestore, 'users', user.uid);
+      const newLocationData = {
+          location: { latitude: lat, longitude: lon },
+          currentLocationAddress: address
+      };
+      setDoc(userRef, newLocationData, { merge: true }).catch((serverError) => {
+          const permissionError = new FirestorePermissionError({
+              path: userRef.path, operation: 'update', requestResourceData: newLocationData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   const handleLocationUpdate = async (position: GeolocationPosition, locationNameToSave?: string) => {
     if (user && firestore) {
       setLoading(true);
       const { latitude, longitude } = position.coords;
-      const userRef = doc(firestore, 'users', user.uid);
       
-      const newLocationName = await reverseGeocode(latitude, longitude);
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+        const data = await response.json();
+        const address = data?.display_name || `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
 
-      const userData: any = {
-        location: { latitude, longitude },
-        currentLocationName: newLocationName,
-      };
+        await updateUserLocation(latitude, longitude, address);
 
-      if (locationNameToSave) {
-          const currentSaved = savedLocations || {};
-          userData.savedLocations = {
-              ...currentSaved,
-              [locationNameToSave]: newLocationName
-          }
+        if (locationNameToSave) {
+            const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
+            const newLocation = { name: locationNameToSave, address, latitude, longitude };
+            await addDoc(savedLocationsRef, newLocation);
+        }
+        
+        await fetchAndSetLocationData(user.uid);
+        toast({ title: "Location Updated", description: `Now showing data for ${address}` });
+
+      } catch (error) {
+         console.error("Error updating location:", error);
+         toast({ variant: "destructive", title: "Error", description: "Failed to update location." });
+      } finally {
+         setLoading(false);
       }
-      
-      setDoc(userRef, userData, { merge: true })
-        .then(() => {
-            fetchAndSetLocationData(user.uid); 
-            toast({ title: "Location Updated", description: `Now showing data for ${newLocationName}` });
-        }).catch((serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'update',
-              requestResourceData: userData,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            toast({ variant: "destructive", title: "Update Failed", description: "Could not update your location." });
-      }).finally(() => {
-        setLoading(false);
-      });
     }
   };
 
@@ -140,71 +143,53 @@ export default function DashboardPage() {
             const data = await response.json();
 
             if (data && data.length > 0) {
-                const { lat, lon } = data[0];
+                const { lat, lon, display_name } = data[0];
                 const latitude = parseFloat(lat);
                 const longitude = parseFloat(lon);
                 
-                const userRef = doc(firestore, 'users', user.uid);
-                
-                const currentSaved = savedLocations || {};
-                const userData: any = {
-                    location: { latitude, longitude },
-                    currentLocationName: address,
-                };
+                await updateUserLocation(latitude, longitude, display_name);
+
                 if (locationNameToSave) {
-                    userData.savedLocations = {
-                        ...currentSaved,
-                        [locationNameToSave]: address
-                    }
+                    const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
+                    const newLocation = { name: locationNameToSave, address: display_name, latitude, longitude };
+                    await addDoc(savedLocationsRef, newLocation);
                 }
                 
-                setDoc(userRef, userData, { merge: true }).then(async () => {
-                  await fetchAndSetLocationData(user.uid); 
-                  toast({ title: "Location Updated", description: `Now showing data for ${address}` });
-                }).catch(async (serverError) => {
-                    const permissionError = new FirestorePermissionError({
-                      path: userRef.path,
-                      operation: 'update',
-                      requestResourceData: userData,
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    toast({ variant: "destructive", title: "Update Failed", description: "Could not update your location." });
-                });
+                await fetchAndSetLocationData(user.uid); 
+                toast({ title: "Location Updated", description: `Now showing data for ${display_name}` });
             } else {
                 toast({ variant: "destructive", title: "Geocoding Failed", description: "Could not find coordinates for the address." });
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error("Geocoding or Firestore update failed:", error);
-            if(error.name !== 'FirestorePermissionError'){
-              toast({ variant: "destructive", title: "Error", description: "Failed to set manual location. Could not fetch resource." });
-            }
+            toast({ variant: "destructive", title: "Error", description: "Failed to set manual location." });
         } finally {
             setLoading(false);
         }
     }
   };
+  
+  const handleSelectSavedLocation = async (location: SavedLocation) => {
+      await updateUserLocation(location.latitude, location.longitude, location.address);
+      await fetchAndSetLocationData(user!.uid);
+      toast({ title: "Location Switched", description: `Now showing data for ${location.name}` });
+  };
 
-  const handleDeleteLocation = (locationKey: string) => {
-      if (user && firestore && savedLocations) {
-          const userRef = doc(firestore, 'users', user.uid);
-          
-          const newSavedLocations = { ...savedLocations };
-          delete newSavedLocations[locationKey];
-          
-          setDoc(userRef, { savedLocations: newSavedLocations }, { merge: true })
-            .then(() => {
-              setSavedLocations(newSavedLocations); // Immediately update local state
-              toast({ title: "Location Deleted", description: `"${locationKey}" has been removed from your saved locations.` });
-            })
-            .catch((serverError) => {
-                const permissionError = new FirestorePermissionError({
-                  path: userRef.path,
-                  operation: 'update',
-                  requestResourceData: { savedLocations: newSavedLocations },
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the location." });
-            });
+  const handleDeleteLocation = async (locationId: string) => {
+      if (user && firestore) {
+          const locRef = doc(firestore, 'users', user.uid, 'savedLocations', locationId);
+          try {
+              await deleteDoc(locRef);
+              toast({ title: "Location Deleted", description: "The location has been removed." });
+              router.refresh(); // Force a server-side refetch of data for the page
+          } catch (serverError: any) {
+              const permissionError = new FirestorePermissionError({
+                  path: locRef.path,
+                  operation: 'delete',
+              });
+              errorEmitter.emit('permission-error', permissionError);
+              toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the location." });
+          }
       }
   };
 
@@ -217,7 +202,7 @@ export default function DashboardPage() {
     );
   }
   
-  if (!location) {
+  if (!currentLocation) {
      return (
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center text-center p-4">
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
@@ -238,7 +223,7 @@ export default function DashboardPage() {
                 <div>
                     <CardTitle className="text-2xl">Flood Risk Dashboard</CardTitle>
                     <CardDescription>
-                        {locationName ? `Showing data for: ${locationName}` : 'Loading location...'}
+                        {currentLocationAddress ? `Showing data for: ${currentLocationAddress}` : 'Loading location...'}
                     </CardDescription>
                 </div>
                 
@@ -252,25 +237,25 @@ export default function DashboardPage() {
                     <DropdownMenuContent align="end" className="w-64">
                         <DropdownMenuLabel>Switch Location</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                         {savedLocations && Object.entries(savedLocations).map(([key, value]) => (
-                            <DropdownMenuItem key={key} onSelect={() => handleManualLocation(value)} className="flex justify-between items-center pr-2">
+                         {savedLocations.map((loc) => (
+                            <DropdownMenuItem key={loc.id} onSelect={() => handleSelectSavedLocation(loc)} className="flex justify-between items-center pr-2">
                                 <div className="flex items-center gap-2">
                                     <Star className="mr-2 h-4 w-4 text-yellow-400"/>
                                     <span className="flex flex-col">
-                                        <span className="font-semibold">{key}</span>
-                                        <span className="text-xs text-muted-foreground">{value.substring(0,25)}...</span>
+                                        <span className="font-semibold">{loc.name}</span>
+                                        <span className="text-xs text-muted-foreground">{loc.address.substring(0,25)}...</span>
                                     </span>
                                 </div>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleDeleteLocation(key); }}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleDeleteLocation(loc.id); }}>
                                     <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                             </DropdownMenuItem>
                         ))}
-                        {savedLocations && Object.keys(savedLocations).length > 0 && <DropdownMenuSeparator />}
+                        {savedLocations.length > 0 && <DropdownMenuSeparator />}
                          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }}>
                              <div className="w-full">
                                 <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation} allowSave={true}>
-                                    <Button variant="ghost" className="w-full justify-start p-0 h-auto font-normal">Add/Change Location</Button>
+                                    <Button variant="ghost" className="w-full justify-start p-0 h-auto font-normal">Add New Location</Button>
                                 </LocationDialog>
                              </div>
                         </DropdownMenuItem>
@@ -291,7 +276,7 @@ export default function DashboardPage() {
           {/* Sidebar column */}
           <div className="space-y-6">
             <LiveWeather />
-            <NewsBoard location={locationName} />
+            <NewsBoard location={currentLocationAddress} />
           </div>
         </div>
       </div>

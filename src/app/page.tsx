@@ -6,7 +6,7 @@ import { Loader } from '@/components/ui/loader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserPlus, HandHelping, LogIn, MapPin } from 'lucide-react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
 import { LocationDialog } from '@/components/location-dialog';
@@ -46,29 +46,30 @@ export default function Home() {
       const { latitude, longitude } = position.coords;
       const userRef = doc(firestore, 'users', user.uid);
       
-      let newLocationName = 'Current Location';
+      let address = 'Current Location';
       try {
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
         const data = await response.json();
         if (data && data.display_name) {
-          newLocationName = data.display_name;
+          address = data.display_name;
         }
       } catch (geocodeError) {
         console.error("Reverse geocoding failed:", geocodeError);
-        newLocationName = `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
+        address = `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
       }
 
       const userData = {
         location: { latitude, longitude },
         status: 'available',
-        currentLocationName: newLocationName,
-        savedLocations: {
-          'Home': newLocationName,
-        }
+        currentLocationAddress: address,
       };
 
       setDoc(userRef, userData, { merge: true })
-        .then(() => {
+        .then(async () => {
+            // Save as a "Home" location by default
+            const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
+            await addDoc(savedLocationsRef, { name: 'Home', address, latitude, longitude });
+
             setIsLocationSet(true);
             router.push('/dashboard');
         })
@@ -95,7 +96,7 @@ export default function Home() {
             const data = await response.json();
 
             if (data && data.length > 0) {
-                const { lat, lon } = data[0];
+                const { lat, lon, display_name } = data[0];
                 const latitude = parseFloat(lat);
                 const longitude = parseFloat(lon);
                 
@@ -103,13 +104,12 @@ export default function Home() {
                 const userData = {
                     location: { latitude, longitude },
                     status: 'available',
-                    currentLocationName: address,
-                    savedLocations: {
-                      'Home': address
-                    }
+                    currentLocationAddress: display_name,
                 };
                
-                setDoc(userRef, userData, { merge: true }).then(() => {
+                setDoc(userRef, userData, { merge: true }).then(async () => {
+                    const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
+                    await addDoc(savedLocationsRef, { name: 'Home', address: display_name, latitude, longitude });
                     setIsLocationSet(true);
                     router.push('/dashboard');
                 }).catch((serverError) => {
@@ -129,13 +129,6 @@ export default function Home() {
             }
         } catch (error) {
             console.error("Geocoding or Firestore update failed:", error);
-            const userRef = doc(firestore, 'users', user.uid);
-             const permissionError = new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'write',
-              requestResourceData: { address },
-            });
-            errorEmitter.emit('permission-error', permissionError);
             toast({
               variant: "destructive",
               title: "Update Failed",
@@ -171,7 +164,7 @@ export default function Home() {
               <CardHeader>
                 <CardTitle>Welcome!</CardTitle>
                  <CardDescription>
-                  Please set your primary location to start receiving localized alerts and information.
+                  Please set your primary location to start receiving localized alerts and information. This will be saved as "Home".
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
