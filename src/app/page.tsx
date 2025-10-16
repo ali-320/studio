@@ -6,11 +6,13 @@ import { Loader } from '@/components/ui/loader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Shield, UserPlus, HandHelping, LogIn, MapPin } from 'lucide-react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
 import { LocationDialog } from '@/components/location-dialog';
 import { useRouter } from 'next/navigation';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 
 export default function Home() {
@@ -38,37 +40,46 @@ export default function Home() {
     if (user && firestore) {
       const { latitude, longitude } = position.coords;
       const userRef = doc(firestore, 'users', user.uid);
-      try {
-        await setDoc(userRef, {
-          location: { latitude, longitude },
-          role: user.isAnonymous ? 'anonymous' : 'registered',
-          status: 'available',
-        }, { merge: true });
+      const userData = {
+        location: { latitude, longitude },
+        role: user.isAnonymous ? 'anonymous' : 'registered',
+        status: 'available',
+      };
 
-        // Reverse geocode to get address
-        try {
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-          const data = await response.json();
-          if (data && data.display_name) {
-            setLocationName(data.display_name);
-          } else {
-            setLocationName('Current Location');
-          }
-        } catch (geocodeError) {
-            console.error("Reverse geocoding failed:", geocodeError);
-            setLocationName(`Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`);
-        }
-        
-        setIsLocationSet(true);
-        router.push('/dashboard');
-      } catch (error) {
-        console.error("Error updating location:", error);
-        toast({
-          variant: "destructive",
-          title: "Update Failed",
-          description: "Could not update your location in our system."
+      setDoc(userRef, userData, { merge: true })
+        .then(async () => {
+             // Reverse geocode to get address
+            try {
+              const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+              const data = await response.json();
+              if (data && data.display_name) {
+                setLocationName(data.display_name);
+              } else {
+                setLocationName('Current Location');
+              }
+            } catch (geocodeError) {
+                console.error("Reverse geocoding failed:", geocodeError);
+                setLocationName(`Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`);
+            }
+            
+            setIsLocationSet(true);
+            router.push('/dashboard');
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'update',
+              requestResourceData: userData,
+            } satisfies SecurityRuleContext);
+
+            errorEmitter.emit('permission-error', permissionError);
+
+            toast({
+              variant: "destructive",
+              title: "Update Failed",
+              description: "Could not update your location in our system."
+            });
         });
-      }
     }
   };
 
@@ -78,28 +89,38 @@ export default function Home() {
       // For now, we'll store the address and placeholder coordinates.
       console.log("Manual location set to:", address);
       const userRef = doc(firestore, 'users', user.uid);
-       try {
-        await setDoc(userRef, {
+      const userData = {
           savedLocations: { home: address },
           location: { latitude: 0, longitude: 0 }, // Placeholder
           role: user.isAnonymous ? 'anonymous' : 'registered',
           status: 'available',
-        }, { merge: true });
-        setIsLocationSet(true);
-        setLocationName(address);
-        toast({
-          title: "Location Set Manually",
-          description: `Your location has been set to ${address}.`,
+        };
+       
+      setDoc(userRef, userData, { merge: true })
+        .then(() => {
+            setIsLocationSet(true);
+            setLocationName(address);
+            toast({
+              title: "Location Set Manually",
+              description: `Your location has been set to ${address}.`,
+            });
+            router.push('/dashboard');
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'update',
+              requestResourceData: userData,
+            } satisfies SecurityRuleContext);
+
+            errorEmitter.emit('permission-error', permissionError);
+
+            toast({
+              variant: "destructive",
+              title: "Update Failed",
+              description: "Could not save your manual location."
+            });
         });
-        router.push('/dashboard');
-       } catch (error) {
-        console.error("Error updating manual location:", error);
-         toast({
-          variant: "destructive",
-          title: "Update Failed",
-          description: "Could not save your manual location."
-        });
-       }
     }
   };
 
@@ -128,8 +149,10 @@ export default function Home() {
             <Card>
               <CardHeader>
                 <CardTitle>Welcome, Resident!</CardTitle>
-                <CardDescription>
-                  {"Please set your location to receive localized alerts."}
+                 <CardDescription>
+                  {locationName
+                    ? `Your location is set to: ${locationName}`
+                    : "Please set your location to receive localized alerts."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

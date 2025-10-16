@@ -7,6 +7,7 @@ import { Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { FirebaseStorage } from 'firebase/storage';
 import { initializeFirebase } from './index';
 import { toast } from '@/hooks/use-toast';
+import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 
 interface FirebaseContextType {
   app: FirebaseApp | null;
@@ -102,6 +103,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   return (
     <FirebaseContext.Provider value={{ ...services, user, loading, signInAnonymously }}>
       {children}
+      <FirebaseErrorListener />
     </FirebaseContext.Provider>
   );
 };
