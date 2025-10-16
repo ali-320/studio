@@ -28,7 +28,11 @@
         },
         "savedLocations": {
             "type": "object",
-            "description": "A map of saved locations for the user."
+            "description": "A map of saved location names to addresses for the user."
+        },
+        "currentLocationName": {
+            "type": "string",
+            "description": "The display name for the user's current location."
         },
         "status": {
             "type": "string",

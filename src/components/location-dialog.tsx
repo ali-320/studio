@@ -12,20 +12,22 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2, MapPin, Save } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface LocationDialogProps {
   children: React.ReactNode;
-  onLocationUpdate: (position: GeolocationPosition) => void;
-  onManualLocationSubmit: (address: string) => void;
+  onLocationUpdate: (position: GeolocationPosition, name?: string) => void;
+  onManualLocationSubmit: (address: string, name?: string) => void;
+  allowSave?: boolean;
 }
 
-export function LocationDialog({ children, onLocationUpdate, onManualLocationSubmit }: LocationDialogProps) {
+export function LocationDialog({ children, onLocationUpdate, onManualLocationSubmit, allowSave = false }: LocationDialogProps) {
   const [open, setOpen] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [manualAddress, setManualAddress] = useState('');
+  const [locationName, setLocationName] = useState('');
 
   const handleAutoDetect = () => {
     if (!navigator.geolocation) {
@@ -40,13 +42,15 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
     setIsFetching(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        onLocationUpdate(position);
+        if (allowSave && locationName) {
+            onLocationUpdate(position, locationName);
+             toast({ title: 'Location Saved!', description: `Saved "${locationName}" successfully.` });
+        } else {
+            onLocationUpdate(position);
+            toast({ title: 'Location Set!', description: 'Your location has been updated automatically.' });
+        }
         setIsFetching(false);
         setOpen(false);
-        toast({
-          title: 'Location Set!',
-          description: 'Your location has been updated automatically.',
-        });
       },
       (error) => {
         console.error('Geolocation error:', error);
@@ -68,7 +72,12 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
           toast({ variant: 'destructive', title: 'Invalid Address', description: 'Please enter a valid address.' });
           return;
       }
-      onManualLocationSubmit(manualAddress);
+       if (allowSave && locationName) {
+            onManualLocationSubmit(manualAddress, locationName);
+            toast({ title: 'Location Saved!', description: `Saved "${locationName}" successfully.` });
+        } else {
+            onManualLocationSubmit(manualAddress);
+        }
       setOpen(false);
   }
 
@@ -76,6 +85,7 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
     setShowManual(false);
     setIsFetching(false);
     setManualAddress('');
+    setLocationName('');
   }
 
   return (
@@ -92,27 +102,46 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
           }
       }}>
         <DialogHeader>
-          <DialogTitle>Set Your Location</DialogTitle>
+          <DialogTitle>Set Location</DialogTitle>
           <DialogDescription>
-            Allow access to your location for real-time alerts or enter it manually.
+            {allowSave ? "Save a new location for quick access." : "Use your current location or enter one manually."}
           </DialogDescription>
         </DialogHeader>
         
         {showManual ? (
             <form onSubmit={handleManualSubmit} className="space-y-4 pt-4">
+                {allowSave && (
+                     <Input 
+                        placeholder="Location Name (e.g., Office, Parents' House)"
+                        value={locationName}
+                        onChange={(e) => setLocationName(e.target.value)}
+                        required
+                    />
+                )}
                 <Input 
-                    placeholder="Enter your full address"
+                    placeholder="Enter full address"
                     value={manualAddress}
                     onChange={(e) => setManualAddress(e.target.value)}
+                    required
                 />
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={() => setShowManual(false)}>Back</Button>
-                    <Button type="submit">Save Address</Button>
+                    <Button type="submit">
+                        <Save className="mr-2 h-4 w-4"/>
+                        {allowSave ? 'Save Location' : 'Set Address'}
+                    </Button>
                 </DialogFooter>
             </form>
         ) : (
             <div className="space-y-4 py-4">
-                <Button onClick={handleAutoDetect} className="w-full h-16" disabled={isFetching}>
+                 {allowSave && (
+                     <Input 
+                        placeholder="Location Name (e.g., Office, Parents' House)"
+                        value={locationName}
+                        onChange={(e) => setLocationName(e.target.value)}
+                    />
+                )}
+                <Button onClick={handleAutoDetect} className="w-full h-16" disabled={isFetching || (allowSave && !locationName)}>
                     {isFetching ? (
                         <>
                             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -125,6 +154,14 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
                         </>
                     )}
                 </Button>
+                 <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Or</span>
+                    </div>
+                </div>
                 <Button variant="secondary" className="w-full" onClick={() => setShowManual(true)} disabled={isFetching}>
                     Enter Location Manually
                 </Button>

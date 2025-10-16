@@ -5,8 +5,8 @@ import { useFirebase } from '@/firebase/client-provider';
 import { Loader } from '@/components/ui/loader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, UserPlus, HandHelping, LogIn, MapPin } from 'lucide-react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { UserPlus, HandHelping, LogIn, MapPin } from 'lucide-react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
 import { LocationDialog } from '@/components/location-dialog';
@@ -40,28 +40,32 @@ export default function Home() {
     if (user && firestore) {
       const { latitude, longitude } = position.coords;
       const userRef = doc(firestore, 'users', user.uid);
+      
+      let newLocationName = 'Current Location';
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+        const data = await response.json();
+        if (data && data.display_name) {
+          newLocationName = data.display_name;
+        }
+      } catch (geocodeError) {
+        console.error("Reverse geocoding failed:", geocodeError);
+        newLocationName = `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
+      }
+
       const userData = {
         location: { latitude, longitude },
         role: user.isAnonymous ? 'anonymous' : 'registered',
         status: 'available',
+        currentLocationName: newLocationName,
+        savedLocations: {
+          'Home': newLocationName,
+        }
       };
 
       setDoc(userRef, userData, { merge: true })
-        .then(async () => {
-             // Reverse geocode to get address
-            try {
-              const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-              const data = await response.json();
-              if (data && data.display_name) {
-                setLocationName(data.display_name);
-              } else {
-                setLocationName('Current Location');
-              }
-            } catch (geocodeError) {
-                console.error("Reverse geocoding failed:", geocodeError);
-                setLocationName(`Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`);
-            }
-            
+        .then(() => {
+            setLocationName(newLocationName);
             setIsLocationSet(true);
             router.push('/dashboard');
         })
@@ -70,7 +74,7 @@ export default function Home() {
               path: userRef.path,
               operation: 'write',
               requestResourceData: userData,
-            } satisfies SecurityRuleContext);
+            });
 
             errorEmitter.emit('permission-error', permissionError);
 
@@ -85,47 +89,57 @@ export default function Home() {
 
   const handleManualLocation = async (address: string) => {
      if (user && firestore) {
-      // In a real app, you would geocode the address here.
-      // For now, we'll store the address and placeholder coordinates.
-      console.log("Manual location set to:", address);
-      const userRef = doc(firestore, 'users', user.uid);
-      const userData = {
-          savedLocations: { home: address },
-          location: { latitude: 0, longitude: 0 }, // Placeholder
-          role: user.isAnonymous ? 'anonymous' : 'registered',
-          status: 'available',
-        };
-       
-      setDoc(userRef, userData, { merge: true })
-        .then(() => {
-            setIsLocationSet(true);
-            setLocationName(address);
-            toast({
-              title: "Location Set Manually",
-              description: `Your location has been set to ${address}.`,
-            });
-            router.push('/dashboard');
-        })
-        .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
+            const data = await response.json();
+
+            if (data && data.length > 0) {
+                const { lat, lon } = data[0];
+                const latitude = parseFloat(lat);
+                const longitude = parseFloat(lon);
+                
+                const userRef = doc(firestore, 'users', user.uid);
+                const userData = {
+                    location: { latitude, longitude },
+                    role: user.isAnonymous ? 'anonymous' : 'registered',
+                    status: 'available',
+                    currentLocationName: address,
+                    savedLocations: {
+                      'Home': address
+                    }
+                };
+               
+                await setDoc(userRef, userData, { merge: true });
+                setIsLocationSet(true);
+                setLocationName(address);
+                router.push('/dashboard');
+            } else {
+                 toast({
+                    variant: "destructive",
+                    title: "Geocoding Failed",
+                    description: "Could not find coordinates for that address. Please try a different one.",
+                });
+            }
+        } catch (error) {
+            console.error("Geocoding or Firestore update failed:", error);
+            const userRef = doc(firestore, 'users', user.uid);
+             const permissionError = new FirestorePermissionError({
               path: userRef.path,
               operation: 'write',
-              requestResourceData: userData,
-            } satisfies SecurityRuleContext);
-
+              requestResourceData: { address },
+            });
             errorEmitter.emit('permission-error', permissionError);
-
             toast({
               variant: "destructive",
               title: "Update Failed",
               description: "Could not save your manual location."
             });
-        });
+        }
     }
   };
 
 
-  if (loading || isLocationSet) {
+  if (loading || (user && isLocationSet)) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center space-y-4">
         <Loader />
