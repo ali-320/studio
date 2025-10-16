@@ -156,7 +156,7 @@ export default function Home() {
               <CardHeader>
                 <CardTitle>Get Started</CardTitle>
                 <CardDescription>Sign in to report incidents and receive alerts.</CardDescription>
-              </header>
+              </CardHeader>
               <CardContent>
                 <Button className="w-full h-20" onClick={signInAnonymously} disabled={loading}>
                   <LogIn className="mr-2 h-5 w-5" /> Anonymous Login
