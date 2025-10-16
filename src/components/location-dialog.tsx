@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -45,11 +46,7 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
         const nameToSave = allowSave && locationName.trim() ? locationName.trim() : undefined;
         onLocationUpdate(position, nameToSave);
         
-        if (nameToSave) {
-          toast({ title: 'Location Saved!', description: `Saved "${nameToSave}" successfully.` });
-        } else {
-          toast({ title: 'Location Set!', description: 'Your location has been updated automatically.' });
-        }
+        toast({ title: 'Location Updated!', description: nameToSave ? `Saved "${nameToSave}" and updated location.` : 'Your location has been updated automatically.' });
         
         setIsFetching(false);
         setOpen(false);
@@ -78,11 +75,7 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
       const nameToSave = allowSave && locationName.trim() ? locationName.trim() : undefined;
       onManualLocationSubmit(manualAddress, nameToSave);
 
-      if (nameToSave) {
-        toast({ title: 'Location Saved!', description: `Saved "${nameToSave}" successfully.` });
-      } else {
-        toast({ title: 'Location Set!', description: 'Your location has been updated.' });
-      }
+      toast({ title: 'Location Updated!', description: nameToSave ? `Saved "${nameToSave}" and set location.` : 'Your location has been updated.' });
 
       setOpen(false);
   }
@@ -177,3 +170,5 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
     </Dialog>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -55,7 +56,7 @@ export default function DashboardPage() {
           } else {
              await reverseGeocode(userLocation.latitude, userLocation.longitude);
           }
-          setLocationVersion(v => v + 1); // Force re-render
+          setLocationVersion(v => v + 1); // Force re-render of components using the key
         } else {
             router.push('/');
         }
@@ -91,6 +92,7 @@ export default function DashboardPage() {
 
   const handleLocationUpdate = async (position: GeolocationPosition, locationNameToSave?: string) => {
     if (user && firestore) {
+      setLoading(true);
       const { latitude, longitude } = position.coords;
       const userRef = doc(firestore, 'users', user.uid);
       
@@ -109,19 +111,21 @@ export default function DashboardPage() {
           }
       }
       
-      try {
-        await setDoc(userRef, userData, { merge: true });
-        await fetchAndSetLocationData(user.uid); 
-        toast({ title: "Location Updated", description: `Now showing data for ${newLocationName}` });
-      } catch (serverError) {
-        const permissionError = new FirestorePermissionError({
-          path: userRef.path,
-          operation: 'update',
-          requestResourceData: userData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({ variant: "destructive", title: "Update Failed", description: "Could not update your location." });
-      }
+      setDoc(userRef, userData, { merge: true })
+        .then(() => {
+            fetchAndSetLocationData(user.uid); 
+            toast({ title: "Location Updated", description: `Now showing data for ${newLocationName}` });
+        }).catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'update',
+              requestResourceData: userData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            toast({ variant: "destructive", title: "Update Failed", description: "Could not update your location." });
+      }).finally(() => {
+        setLoading(false);
+      });
     }
   };
 
@@ -159,7 +163,6 @@ export default function DashboardPage() {
             }
         } catch (error: any) {
             console.error("Geocoding or Firestore update failed:", error);
-            // This error might also be a Firestore security rule error.
             if(error.name !== 'FirestorePermissionError'){
               toast({ variant: "destructive", title: "Error", description: "Failed to set manual location. Could not fetch resource." });
             }
@@ -200,9 +203,9 @@ export default function DashboardPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-bold">Location Not Found</h1>
         <p className="text-muted-foreground mt-2">We couldn't find your location data. Please return to the home page to set it.</p>
-        <button onClick={() => router.push('/')} className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md">
+        <Button onClick={() => router.push('/')} className="mt-4">
           Go Home
-        </button>
+        </Button>
       </div>
     );
   }
@@ -218,42 +221,42 @@ export default function DashboardPage() {
                         {locationName ? `Showing data for: ${locationName}` : 'Loading location...'}
                     </CardDescription>
                 </div>
-                <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation} allowSave={true}>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline">
-                                <MapPin className="mr-2"/>
-                                Change Location
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-64">
-                            <DropdownMenuLabel>Switch Location</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                             {savedLocations && Object.entries(savedLocations).map(([key, value]) => (
-                                <DropdownMenuItem key={key} onSelect={() => handleManualLocation(value)} className="flex justify-between items-center">
-                                    <div className="flex items-center">
-                                        <Star className="mr-2 h-4 w-4 text-yellow-400"/>
-                                        <span className="flex flex-col">
-                                            <span className="font-semibold">{key}</span>
-                                            <span className="text-xs text-muted-foreground">{value.substring(0,25)}...</span>
-                                        </span>
-                                    </div>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleDeleteLocation(key); }}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                </DropdownMenuItem>
-                            ))}
-                            {savedLocations && Object.keys(savedLocations).length > 0 && <DropdownMenuSeparator />}
-                             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }}>
-                                 <div className="w-full">
-                                    <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation} allowSave={true}>
-                                        <Button variant="ghost" className="w-full justify-start p-0 h-auto font-normal">Add/Change Location</Button>
-                                    </LocationDialog>
-                                 </div>
+                
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline">
+                            <MapPin className="mr-2"/>
+                            Change Location
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                        <DropdownMenuLabel>Switch Location</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                         {savedLocations && Object.entries(savedLocations).map(([key, value]) => (
+                            <DropdownMenuItem key={key} onSelect={() => handleManualLocation(value)} className="flex justify-between items-center">
+                                <div className="flex items-center">
+                                    <Star className="mr-2 h-4 w-4 text-yellow-400"/>
+                                    <span className="flex flex-col">
+                                        <span className="font-semibold">{key}</span>
+                                        <span className="text-xs text-muted-foreground">{value.substring(0,25)}...</span>
+                                    </span>
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleDeleteLocation(key); }}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
                             </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </LocationDialog>
+                        ))}
+                        {savedLocations && Object.keys(savedLocations).length > 0 && <DropdownMenuSeparator />}
+                         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }}>
+                             <div className="w-full">
+                                <LocationDialog onLocationUpdate={handleLocationUpdate} onManualLocationSubmit={handleManualLocation} allowSave={true}>
+                                    <Button variant="ghost" className="w-full justify-start p-0 h-auto font-normal">Add/Change Location</Button>
+                                </LocationDialog>
+                             </div>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                
             </CardHeader>
         </Card>
 
@@ -275,3 +278,5 @@ export default function DashboardPage() {
     </main>
   );
 }
+
+    
