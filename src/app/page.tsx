@@ -12,29 +12,34 @@ import { VolunteerApplicationDialog } from '@/components/volunteer-application-d
 import { LocationDialog } from '@/components/location-dialog';
 import { useRouter } from 'next/navigation';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { FirestorePermissionError } from '@/firebase/errors';
+import Link from 'next/link';
 
 
 export default function Home() {
-  const { user, loading, firestore, signInAnonymously } = useFirebase();
+  const { user, loading, firestore } = useFirebase();
   const [isLocationSet, setIsLocationSet] = useState(false);
-  const [locationName, setLocationName] = useState<string | null>(null);
+  const [isCheckingLocation, setIsCheckingLocation] = useState(true);
   const router = useRouter();
+  const { toast } = useToast();
   
   useEffect(() => {
-    if (!loading && !user) {
-      signInAnonymously?.();
+    if (!loading) {
+      if (user && firestore) {
+        const userRef = doc(firestore, 'users', user.uid);
+        getDoc(userRef).then(docSnap => {
+          if (docSnap.exists() && docSnap.data().location) {
+            setIsLocationSet(true);
+            router.push('/dashboard');
+          } else {
+            setIsCheckingLocation(false);
+          }
+        }).catch(() => setIsCheckingLocation(false));
+      } else {
+        setIsCheckingLocation(false);
+      }
     }
-    if (user && firestore) {
-      const userRef = doc(firestore, 'users', user.uid);
-      getDoc(userRef).then(docSnap => {
-        if (docSnap.exists() && docSnap.data().location) {
-          setIsLocationSet(true);
-          router.push('/dashboard');
-        }
-      })
-    }
-  }, [user, loading, signInAnonymously, firestore, router]);
+  }, [user, loading, firestore, router]);
 
   const handleLocationUpdate = async (position: GeolocationPosition) => {
     if (user && firestore) {
@@ -55,7 +60,6 @@ export default function Home() {
 
       const userData = {
         location: { latitude, longitude },
-        role: user.isAnonymous ? 'anonymous' : 'registered',
         status: 'available',
         currentLocationName: newLocationName,
         savedLocations: {
@@ -65,7 +69,6 @@ export default function Home() {
 
       setDoc(userRef, userData, { merge: true })
         .then(() => {
-            setLocationName(newLocationName);
             setIsLocationSet(true);
             router.push('/dashboard');
         })
@@ -75,9 +78,7 @@ export default function Home() {
               operation: 'write',
               requestResourceData: userData,
             });
-
             errorEmitter.emit('permission-error', permissionError);
-
             toast({
               variant: "destructive",
               title: "Update Failed",
@@ -101,7 +102,6 @@ export default function Home() {
                 const userRef = doc(firestore, 'users', user.uid);
                 const userData = {
                     location: { latitude, longitude },
-                    role: user.isAnonymous ? 'anonymous' : 'registered',
                     status: 'available',
                     currentLocationName: address,
                     savedLocations: {
@@ -111,7 +111,6 @@ export default function Home() {
                
                 await setDoc(userRef, userData, { merge: true });
                 setIsLocationSet(true);
-                setLocationName(address);
                 router.push('/dashboard');
             } else {
                  toast({
@@ -139,11 +138,11 @@ export default function Home() {
   };
 
 
-  if (loading || (user && isLocationSet)) {
+  if (loading || isCheckingLocation || (user && isLocationSet)) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center space-y-4">
         <Loader />
-        <p className="text-muted-foreground">{isLocationSet ? 'Redirecting to dashboard...' : 'Authenticating...'}</p>
+        <p className="text-muted-foreground">{ (user && isLocationSet) ? 'Redirecting to dashboard...' : 'Checking your status...'}</p>
       </div>
     );
   }
@@ -159,14 +158,12 @@ export default function Home() {
             </p>
           </div>
 
-          {user ? (
+          {user && !isLocationSet ? (
             <Card>
               <CardHeader>
-                <CardTitle>Welcome, Resident!</CardTitle>
+                <CardTitle>Welcome!</CardTitle>
                  <CardDescription>
-                  {locationName
-                    ? `Your location is set to: ${locationName}`
-                    : "Please set your location to receive localized alerts."}
+                  Please set your primary location to start receiving localized alerts and information.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -175,29 +172,25 @@ export default function Home() {
                         <MapPin className="mr-2 h-5 w-5"/> Set Your Location
                     </Button>
                 </LocationDialog>
-                
-                <div className="grid gap-4 md:grid-cols-2">
-                    <Button className="w-full h-20" disabled>
-                        <UserPlus className="mr-2 h-5 w-5"/> Register My Account
-                    </Button>
-                     <VolunteerApplicationDialog>
-                        <Button className="w-full h-20" variant="secondary">
-                            <HandHelping className="mr-2 h-5 w-5"/> Apply to be a Volunteer
-                        </Button>
-                    </VolunteerApplicationDialog>
-                </div>
               </CardContent>
             </Card>
           ) : (
             <Card>
               <CardHeader>
                 <CardTitle>Get Started</CardTitle>
-                <CardDescription>Sign in to report incidents and receive alerts.</CardDescription>
+                <CardDescription>Sign up or log in to report incidents and receive alerts.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Button className="w-full h-20" onClick={signInAnonymously} disabled={loading}>
-                  <LogIn className="mr-2 h-5 w-5" /> Anonymous Login
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <Button className="w-full h-20" asChild>
+                  <Link href="/login">
+                    <LogIn className="mr-2 h-5 w-5" /> Login / Sign Up
+                  </Link>
                 </Button>
+                <VolunteerApplicationDialog>
+                    <Button className="w-full h-20" variant="secondary">
+                        <HandHelping className="mr-2 h-5 w-5"/> Apply to be a Volunteer
+                    </Button>
+                </VolunteerApplicationDialog>
               </CardContent>
             </Card>
           )}

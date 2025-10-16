@@ -62,6 +62,7 @@ export default function DashboardPage() {
             router.push('/');
         }
       } else {
+        // This case can happen for a newly registered user who hasn't set a location yet.
         router.push('/');
       }
       setLoading(false);
@@ -70,10 +71,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push('/');
+      router.push('/login');
     } else if(user) {
       fetchAndSetLocationData(user.uid);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, router]);
 
   const reverseGeocode = async (lat: number, lon: number) => {
@@ -295,5 +297,3 @@ export default function DashboardPage() {
     </main>
   );
 }
-
-    

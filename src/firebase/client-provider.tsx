@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Auth, onAuthStateChanged, User, signInAnonymously as firebaseSignInAnonymously } from 'firebase/auth';
+import { Auth, onAuthStateChanged, User, signOut as firebaseSignOut } from 'firebase/auth';
 import { Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { FirebaseStorage } from 'firebase/storage';
 import { initializeFirebase } from './index';
@@ -16,7 +16,7 @@ interface FirebaseContextType {
   storage: FirebaseStorage | null;
   user: User | null;
   loading: boolean;
-  signInAnonymously: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
 const FirebaseContext = createContext<FirebaseContextType>({
@@ -26,11 +26,11 @@ const FirebaseContext = createContext<FirebaseContextType>({
   storage: null,
   user: null,
   loading: true,
-  signInAnonymously: async () => {},
+  signOut: async () => {},
 });
 
 export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [services, setServices] = useState<Omit<FirebaseContextType, 'user' | 'loading' | 'signInAnonymously'>>({
+  const [services, setServices] = useState<Omit<FirebaseContextType, 'user' | 'loading' | 'signOut'>>({
     app: null,
     auth: null,
     firestore: null,
@@ -47,17 +47,13 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (firestore) {
         enableIndexedDbPersistence(firestore).catch((err) => {
           if (err.code == 'failed-precondition') {
-            toast({
-              variant: "destructive",
-              title: "Offline Mode Failed",
-              description: "Multiple tabs open, offline persistence can only be enabled in one tab at a a time.",
-            })
+            // Multiple tabs open, persistence can only be enabled
+            // in one tab at a a time.
+            console.warn("Firestore offline persistence failed: multiple tabs open.");
           } else if (err.code == 'unimplemented') {
-            toast({
-              variant: "destructive",
-              title: "Offline Mode Not Supported",
-              description: "The current browser does not support all of the features required to enable offline persistence.",
-            })
+            // The current browser does not support all of the
+            // features required to enable persistence
+            console.warn("Firestore offline persistence not supported in this browser.");
           }
         });
       }
@@ -75,35 +71,34 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
        console.error("Firebase initialization failed:", error);
        toast({
           variant: "destructive",
-          title: "Authentication Failed",
-          description: error.message || "Could not connect to Firebase. Please check your API keys.",
+          title: "Connection Failed",
+          description: error.message || "Could not connect to Firebase services.",
         })
        setLoading(false);
     }
   }, []);
 
-  const signInAnonymously = useCallback(async () => {
+  const signOut = useCallback(async () => {
     if (services.auth) {
-      setLoading(true);
       try {
-        await firebaseSignInAnonymously(services.auth);
+        await firebaseSignOut(services.auth);
+        toast({ title: "Signed Out", description: "You have been successfully signed out." });
       } catch (error) {
-        console.error("Anonymous sign-in failed", error);
+        console.error("Sign-out failed", error);
         toast({
           variant: "destructive",
-          title: "Authentication Failed",
-          description: "Could not sign you in anonymously. Please check your connection and API keys.",
+          title: "Sign-Out Failed",
+          description: "Could not sign you out. Please try again.",
         })
-      } finally {
-        setLoading(false);
       }
     }
   }, [services.auth]);
 
   return (
-    <FirebaseContext.Provider value={{ ...services, user, loading, signInAnonymously }}>
+    <FirebaseContext.Provider value={{ ...services, user, loading, signOut }}>
       {children}
       <FirebaseErrorListener />
+      <div id="recaptcha-container"></div>
     </FirebaseContext.Provider>
   );
 };
