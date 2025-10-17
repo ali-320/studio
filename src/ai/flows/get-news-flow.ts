@@ -34,9 +34,15 @@ const getNewsPrompt = ai.definePrompt({
     model: googleAI('gemini-1.5-flash'),
     input: { schema: z.string() },
     output: { schema: GetNewsOutputSchema },
-    prompt: `You are a helpful news aggregator. Find 4 recent and authentic news articles related to potential flooding, heavy rainfall, or severe weather warnings for the following location: {{{input}}}.
+    prompt: `You are a helpful news aggregator specializing in environmental and weather-related events. Find 4 recent and authentic news articles relevant to potential flood risks for the following location: {{{input}}}.
 
-    Provide a diverse set of sources. For each article, provide the headline, a brief summary, the source name, and a valid, direct URL to the article. Ensure the URLs are real and lead directly to the story.`,
+    Your search should be comprehensive. Include news about:
+    - Direct weather warnings (heavy rainfall, storms, cyclones).
+    - Mountain-related news (unusual snowmelt, glacier conditions, landslides).
+    - Major water body status (rising river levels, dam overflows) in the surrounding region.
+    - News from nearby major cities that could impact the given location.
+
+    Provide a diverse set of sources. For each article, provide the headline, a brief summary, the source name, and a valid, direct URL to the article. Ensure the URLs are real and lead directly to the story. If you cannot find 4 articles, return as many as you can find, but do not invent news.`,
 });
 
 const getNewsFlow = ai.defineFlow(
