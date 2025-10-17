@@ -139,7 +139,7 @@
     },
     "news": {
       "title": "News Cache",
-      "description": "Stores cached news articles for a specific location to avoid refetching.",
+      "description": "Stores cached news articles for a specific location.",
       "type": "object",
       "properties": {
         "articles": {
@@ -151,8 +151,7 @@
               "summary": { "type": "string" },
               "source": { "type": "string" },
               "url": { "type": "string", "format": "uri" }
-            },
-            "required": ["title", "summary", "source", "url"]
+            }
           }
         },
         "updatedAt": {
