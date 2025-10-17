@@ -49,6 +49,7 @@ export function NewsBoard({ location }: { location: string | null }) {
           const data = docSnap.data() as NewsCache;
           setNews(data.articles);
           setUpdatedAt(new Date(data.updatedAt.seconds * 1000));
+          setError(null);
         } else {
           setNews([]);
           setUpdatedAt(null);
@@ -88,14 +89,14 @@ export function NewsBoard({ location }: { location: string | null }) {
               requestResourceData: newsData,
           });
           errorEmitter.emit('permission-error', permissionError);
-          setError("Failed to refresh news. You might lack permissions.");
+          // The toast and UI update are handled by the permission error system
       });
       
       toast({ title: "News Updated", description: "The news feed has been refreshed." });
 
     } catch (err) {
       console.error("Error refreshing news:", err);
-      setError("Failed to refresh news. The AI service may be down.");
+      setError("Failed to refresh news. The AI service may be down or you might lack permissions.");
     } finally {
       setRefreshing(false);
     }
