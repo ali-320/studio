@@ -5,7 +5,6 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const PredictFloodRiskInputSchema = z.object({
@@ -27,7 +26,7 @@ export async function predictFloodRisk(input: z.infer<typeof PredictFloodRiskInp
 
 const predictFloodRiskPrompt = ai.definePrompt({
     name: 'predictFloodRiskPrompt',
-    model: googleAI('gemini-1.5-flash'),
+    model: 'googleai/gemini-1.5-flash',
     input: { schema: PredictFloodRiskInputSchema },
     output: { schema: PredictionSchema },
     prompt: `You are a sophisticated flood risk analysis engine. Your task is to analyze the provided data for a specific location and determine the flood risk.

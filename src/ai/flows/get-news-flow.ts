@@ -9,7 +9,6 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const NewsItemSchema = z.object({
@@ -32,7 +31,7 @@ export async function getNewsForLocation(location: string): Promise<GetNewsOutpu
 
 const getNewsPrompt = ai.definePrompt({
     name: 'getNewsPrompt',
-    model: googleAI('gemini-1.5-flash'),
+    model: 'googleai/gemini-1.5-flash',
     output: { schema: GetNewsOutputSchema },
     prompt: `You are a web search and summarization engine. Your task is to find 4 recent and relevant online articles or official updates about flood-related factors for the following location: {{{input}}}.
 
