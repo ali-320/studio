@@ -10,7 +10,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { WeatherCharts } from '@/components/dashboard/weather-charts';
 import { LiveWeather } from '@/components/dashboard/live-weather';
 import { NewsBoard } from '@/components/dashboard/news-board';
-import { AIPredictor } from '@/components/dashboard/ai-predictor';
 import { ScenarioChecker } from '@/components/dashboard/scenario-checker';
 import { AlertTriangle, MapPin, Star, Trash2 } from 'lucide-react';
 import { LocationDialog } from '@/components/location-dialog';
@@ -271,7 +270,6 @@ export default function DashboardPage() {
           {/* Main content column */}
           <div className="lg:col-span-2 space-y-6">
             <WeatherCharts />
-            <AIPredictor />
             <ScenarioChecker />
           </div>
 
