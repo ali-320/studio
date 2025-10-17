@@ -64,33 +64,15 @@ const getNewsFlow = ai.defineFlow(
             const { output } = await getNewsPrompt(location);
             
             if (!output || output.articles.length === 0) {
-                 console.log("AI returned no news. Generating mock data.");
-                 return {
-                     articles: [
-                         {
-                             title: "Mock Data: AI Did Not Return News",
-                             summary: "This is a placeholder because the AI service did not return any news for your location. This confirms the data pipeline is working, but the AI is not finding results. The issue is with the AI prompt or its search capabilities.",
-                             source: "System Test",
-                             url: "https://firebase.google.com/"
-                         }
-                     ]
-                 };
+                 console.log("AI returned no news. This should not happen with the new prompt, but as a fallback, returning an empty array.");
+                 return { articles: [] };
             }
             
             return output;
         } catch (error) {
-            console.error("Error in getNewsFlow, returning mock data:", error);
-            // Return mock data on failure to prevent client-side crashes and test pipeline
-             return {
-                 articles: [
-                     {
-                         title: "Mock Data: AI Flow Encountered an Error",
-                         summary: "This is a placeholder because the AI flow failed to execute. This could be due to a service outage, a configuration issue, or a bug in the flow itself. Check the server logs for more details.",
-                         source: "System Error",
-                         url: "https://firebase.google.com/docs"
-                     }
-                 ]
-             };
+            console.error("Error in getNewsFlow:", error);
+            // Return empty array on failure to prevent client-side crashes
+            return { articles: [] };
         }
     }
 );
