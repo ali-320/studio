@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { AlertsDisplay } from '@/components/dashboard/alerts-display';
+import { AIPredictor } from '@/components/dashboard/ai-predictor';
 
 interface Location {
   latitude: number;
@@ -269,6 +270,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" key={locationVersion}>
           {/* Main content column */}
           <div className="lg:col-span-2 space-y-6">
+            <AIPredictor />
             <WeatherCharts />
             <ScenarioChecker />
           </div>
