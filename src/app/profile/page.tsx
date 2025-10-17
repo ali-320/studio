@@ -1,13 +1,13 @@
 
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { Loader } from '@/components/ui/loader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useFirebase } from '@/firebase/client-provider';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
 import { HandHelping } from 'lucide-react';
@@ -17,12 +17,25 @@ export default function ProfilePage() {
   const { user, loading: authLoading } = useFirebase();
   const { profile, loading: profileLoading } = useUserProfile();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [openApplication, setOpenApplication] = useState(false);
+  const intentRef = useRef(searchParams.get('intent'));
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
     }
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (intentRef.current === 'apply_volunteer' && profile) {
+      setOpenApplication(true);
+      // Clear intent from ref and URL
+      intentRef.current = null; 
+      router.replace('/profile', { scroll: false });
+    }
+  }, [profile, router]);
+
 
   if (authLoading || profileLoading) {
     return (
@@ -43,6 +56,7 @@ export default function ProfilePage() {
   }
   
   const getInitials = (name: string) => {
+    if (!name) return '';
     const names = name.split(' ');
     if (names.length > 1) {
       return `${names[0][0]}${names[names.length - 1][0]}`;
@@ -81,7 +95,7 @@ export default function ProfilePage() {
           </CardContent>
           {profile.role === 'registered' && (
             <CardFooter className="pt-6">
-                <VolunteerApplicationDialog>
+                <VolunteerApplicationDialog open={openApplication} onOpenChange={setOpenApplication}>
                     <Button variant="secondary" className="w-full">
                         <HandHelping className="mr-2 h-4 w-4" />
                         Apply to be a Volunteer

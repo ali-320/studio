@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -39,11 +40,24 @@ const applicationSchema = z.object({
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
 
-export function VolunteerApplicationDialog({ children }: { children: React.ReactNode }) {
+interface VolunteerApplicationDialogProps {
+  children: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+
+export function VolunteerApplicationDialog({ children, open: controlledOpen, onOpenChange: setControlledOpen }: VolunteerApplicationDialogProps) {
   const { user, firestore } = useFirebase();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  
+  const [internalOpen, setInternalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Determine if the dialog is controlled or uncontrolled
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = setControlledOpen || setInternalOpen;
+
 
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
@@ -53,14 +67,14 @@ export function VolunteerApplicationDialog({ children }: { children: React.React
     },
   });
 
-  const handleOpen = () => {
+  const handleTriggerClick = () => {
     if (!user) {
         toast({
             variant: 'destructive',
             title: 'Login Required',
             description: 'You must be signed in to apply as a volunteer.',
         });
-        router.push('/login');
+        router.push('/login?intent=apply_volunteer');
     } else {
         setOpen(true);
     }
@@ -105,8 +119,8 @@ export function VolunteerApplicationDialog({ children }: { children: React.React
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild onClick={handleTriggerClick}>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Apply to be a Volunteer</DialogTitle>

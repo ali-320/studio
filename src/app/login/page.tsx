@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useFirebase } from '@/firebase/client-provider';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
@@ -32,15 +33,21 @@ const signupSchema = z.object({
 export default function LoginPage() {
   const { auth, firestore, user, loading } = useFirebase();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
 
   useEffect(() => {
     if (!loading && user) {
-      router.push('/dashboard');
+      const intent = searchParams.get('intent');
+      if (intent === 'apply_volunteer') {
+        router.push('/profile?intent=apply_volunteer');
+      } else {
+        router.push('/dashboard');
+      }
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, searchParams]);
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -58,7 +65,7 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
       toast({ title: 'Login Successful', description: "Welcome back!" });
-      router.push('/');
+      // The useEffect will handle redirection.
     } catch (error: any) {
       console.error('Login error:', error);
       toast({
@@ -96,7 +103,7 @@ export default function LoginPage() {
       });
 
       toast({ title: 'Account Created!', description: 'You have been logged in.' });
-      router.push('/'); // Redirect to home to set location
+      // The useEffect will handle redirection to set location.
     } catch (error: any) {
       console.error('Sign up error:', error);
       toast({
