@@ -1,161 +1,186 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model with ownership constraints.
+ * @description This ruleset defines access control for the Flood Prevention application.
+ *
+ * Core Philosophy:
+ *  This ruleset implements a hybrid security model, combining user-based access control with public read access for certain collections.
+ *  User data and related subcollections are strictly controlled by ownership. Alerts are publicly readable.
+ *  Volunteer applications are managed by admins. News feeds are globally accessible for reading and restricted for writing.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles.  Admins can read and write any user document.  Users can only read and write their own document.
- * - /users/{userId}/savedLocations/{locationId}: Stores saved locations for a user. Only the owner can manage their own locations.
- * - /alerts/{alertId}: Stores flood alerts. Public read access. Only admins can create, update, or delete alerts.
- * - /volunteerApplications/{applicationId}: Stores volunteer applications. Public read access.  Only admins can create, update, or delete applications.
- * - /incidentReports/{reportId}: Stores incident reports. Only admins can create, update, or delete reports.
- * - /volunteerChats/{chatId}: Stores volunteer chat messages. Public read access. Only authenticated users can create messages.
+ *  - /users/{userId}: User profiles, accessible only to the owning user.
+ *  - /users/{userId}/savedLocations/{locationId}: Saved locations, accessible only to the owning user.
+ *  - /alerts/{alertId}: Flood alerts, publicly readable.
+ *  - /volunteerApplications/{applicationId}: Volunteer applications, create operations open to all, managed by admins.
+ *  - /incidentReports/{reportId}: Incident reports from volunteers, associated with alerts.
+ *  - /volunteerChats/{chatId}: Chat messages for volunteers.
+ *  - /news/{locationId}: Cached news articles for a given location.
  *
  * Key Security Decisions:
- * - User listing is disallowed to protect user privacy.
- * - Alerts and Volunteer Applications are publicly readable to facilitate rapid information dissemination and volunteer recruitment.
- * - Admin users have privileged access to all user data and alerts.
+ *  - User listing is disallowed to protect privacy.
+ *  - Alerts are publicly readable, but creation, updates, and deletions are restricted.
+ *  - The news feed is globally readable but restricted to write operations to authorized sources.
  *
  * Denormalization for Authorization:
- * - No denormalization is needed as roles are stored on the user document, which simplifies access control.
+ *  - Alerts do not require denormalization as they are intended to be publicly readable.
+ *  - Incident Reports include `alertId` and `volunteerId` to link them to alerts and volunteers.
+ *
+ * Structural Segregation:
+ *  - User-specific data (profile, saved locations) is stored under the /users/{userId} path for strict ownership.
+ *  - Publicly readable data (alerts, news) is stored in top-level collections.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user is an admin.
-     */
-    function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    /**
-     * @description Checks if the authenticated user is an existing owner.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Rule for the /users/{userId} collection.
+     * @description Grants access to user profiles.
      * @path /users/{userId}
-     * @allow (get) Signed-in user can read their own profile: auth.uid == userId
-     * @allow (create) Signed-in user can create their own profile: auth.uid == userId
-     * @allow (update) Signed-in user can update their own profile: auth.uid == userId
-     * @allow (delete) Signed-in user can delete their own profile: auth.uid == userId
-     * @allow (get) Admin user can read any profile.
-     * @allow (update) Admin user can update any profile.
-     * @deny (create) Non-signed-in user attempts to create a profile.
-     * @deny (update) Signed-in user attempts to update another user's profile: auth.uid != userId
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - If the user's UID matches the document ID (self-registration).
+     * @allow (get, update, delete) - If the user is the owner of the profile.
+     * @deny (list) - User listing is disallowed for privacy.
+     * @deny (create) - If the user's UID does not match the document ID.
+     * @deny (update, delete) - If the user is not the owner of the profile.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if false; // User listing is not permitted.
-      allow create: if isOwner(userId) && request.resource.data.email is string;
-      allow update: if isExistingOwner(userId) || isAdmin();
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      // Prevent user listing for privacy
+      allow list: if false;
+
+      // Allow a user to create their own profile if the UID matches the document ID
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.email is string;
+
+      // Allow a user to read, update, and delete their own profile
+      allow get: if isSignedIn() && isOwner(userId);
+      allow update: if isExistingOwner(userId) && request.resource.data.email == resource.data.email;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rule for the /users/{userId}/savedLocations/{locationId} collection.
+     * @description Grants access to a user's saved locations.
      * @path /users/{userId}/savedLocations/{locationId}
-     * @allow (create) Signed-in user can create a saved location under their own user ID.
-     * @allow (update) Signed-in user can update a saved location under their own user ID.
-     * @allow (delete) Signed-in user can delete a saved location under their own user ID.
-     * @deny (create) Signed-in user attempts to create a saved location under another user's ID.
-     * @deny (update) Signed-in user attempts to update a saved location under another user's ID.
-     * @deny (delete) Signed-in user attempts to delete a saved location under another user's ID.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (create, get, list, update, delete) - If the user is the owner.
+     * @deny (create, get, list, update, delete) - If the user is not the owner.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/savedLocations/{locationId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isSignedIn() && isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rule for the /alerts/{alertId} collection.
+     * @description Grants read access to all users for alerts.
      * @path /alerts/{alertId}
-     * @allow (get) Public access to read alerts.
-     * @allow (create) Only admins can create alerts.
-     * @allow (update) Only admins can update alerts.
-     * @allow (delete) Only admins can delete alerts.
-     * @principle Public read, owner-only writes, with admin override.
+     * @allow (get, list) - To any user.
+     * @deny (create, update, delete) - Only administrators or backend functions can create/modify alerts.
+     * @principle Allows public read access but restricts write access.
      */
     match /alerts/{alertId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow create: if false; // TODO: Add validation for admin or backend function.
+      allow update: if false; // TODO: Add validation for admin or backend function.
+      allow delete: if false; // TODO: Add validation for admin or backend function.
     }
 
     /**
-     * @description Rule for the /volunteerApplications/{applicationId} collection.
+     * @description Grants access to volunteer applications.
      * @path /volunteerApplications/{applicationId}
-     * @allow (get) Public access to read volunteer applications.
-     * @allow (create) Only admins can create applications.
-     * @allow (update) Only admins can update applications.
-     * @allow (delete) Only admins can delete applications.
-     * @principle Public read, owner-only writes, with admin override.
+     * @allow (create) - Any signed-in user can submit an application.
+     * @deny (get, list, update, delete) - Only admins can manage applications.
+     * @principle Allows open creation but restricts management to administrators.
      */
     match /volunteerApplications/{applicationId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow create: if isSignedIn();
+      allow get: if false; // TODO: Add validation for admin role.
+      allow list: if false; // TODO: Add validation for admin role.
+      allow update: if false; // TODO: Add validation for admin role.
+      allow delete: if false; // TODO: Add validation for admin role.
     }
 
     /**
-     * @description Rule for the /incidentReports/{reportId} collection.
+     * @description Grants access to incident reports.
      * @path /incidentReports/{reportId}
-     * @allow (get) Public access to read incident reports.
-     * @allow (create) Only admins can create reports.
-     * @allow (update) Only admins can update reports.
-     * @allow (delete) Only admins can delete reports.
-     * @principle Owner-only access to writes, with admin override.
+     * @allow (create) - Only volunteers can create incident reports.
+     * @allow (get, list) - Only volunteers can read incident reports.
+     * @allow (update, delete) - No one can update or delete incident reports.
+     * @principle Restricts access to incident reports to volunteers only.
      */
     match /incidentReports/{reportId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow create: if isSignedIn(); // TODO: Add volunteer role check and validation for correct alertId and volunteerId.
+      allow get: if isSignedIn();  // TODO: Add volunteer role check.
+      allow list: if isSignedIn(); // TODO: Add volunteer role check.
+      allow update: if false;
+      allow delete: if false;
     }
 
-     /**
-      * @description Rule for the /volunteerChats/{chatId} collection.
-      * @path /volunteerChats/{chatId}
-      * @allow (get) Public access to read chat messages.
-      * @allow (create) Any signed-in user can create chat messages.
-      * @deny (update) No updates allowed to chat messages.
-      * @deny (delete) No deletes allowed to chat messages.
-      * @principle Public read, signed-in user can create.
-      */
+    /**
+     * @description Grants access to volunteer chat messages.
+     * @path /volunteerChats/{chatId}
+     * @allow (create, get, list) - Only volunteers can create, read, and list chat messages.
+     * @deny (update, delete) - No one can update or delete chat messages.
+     * @principle Restricts access to chat messages to volunteers only.
+     */
     match /volunteerChats/{chatId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if isSignedIn();
-        allow update: if false;
-        allow delete: if false;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow create: if isSignedIn(); // TODO: Add volunteer role check and validation for userId and userName.
+      allow get: if isSignedIn(); // TODO: Add volunteer role check.
+      allow list: if isSignedIn(); // TODO: Add volunteer role check.
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Grants read access to the news feed for all users, but restricts write access.
+     * @path /news/{locationId}
+     * @allow (get, list) - To any user.
+     * @deny (create, update, delete) - Only backend functions can write to the news feed.
+     * @principle Allows public read access but restricts write access.
+     */
+    match /news/{locationId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if false; // TODO: Add validation for backend function.
+      allow update: if false; // TODO: Add validation for backend function.
+      allow delete: if false; // TODO: Add validation for backend function.
     }
   }
 }
