@@ -12,7 +12,7 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
-export const NewsItemSchema = z.object({
+const NewsItemSchema = z.object({
     title: z.string().describe('The headline of the news article.'),
     summary: z.string().describe('A brief summary of the news article.'),
     source: z.string().describe('The name of the news source (e.g., "BBC News", "Reuters").'),
@@ -20,7 +20,7 @@ export const NewsItemSchema = z.object({
 });
 export type NewsItem = z.infer<typeof NewsItemSchema>;
 
-export const GetNewsOutputSchema = z.object({
+const GetNewsOutputSchema = z.object({
     articles: z.array(NewsItemSchema),
 });
 export type GetNewsOutput = z.infer<typeof GetNewsOutputSchema>;
