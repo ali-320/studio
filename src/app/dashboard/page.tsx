@@ -223,7 +223,7 @@ export default function DashboardPage() {
         <Card className="mb-6">
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                    <CardTitle className="text-2xl">Flood Risk Dashboard</CardTitle>
+                    <CardTitle className="text-2xl">Nigehbaan Dashboard</CardTitle>
                     <CardDescription>
                         {currentLocationAddress ? `Showing data for: ${currentLocationAddress}` : 'Loading location...'}
                     </CardDescription>
