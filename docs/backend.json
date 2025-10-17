@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "user": {
@@ -151,7 +152,8 @@
               "summary": { "type": "string" },
               "source": { "type": "string" },
               "url": { "type": "string", "format": "uri" }
-            }
+            },
+            "required": ["title", "summary", "source", "url"]
           }
         },
         "updatedAt": {
