@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
+import { AlertsDisplay } from '@/components/dashboard/alerts-display';
 
 interface Location {
   latitude: number;
@@ -181,14 +182,14 @@ export default function DashboardPage() {
           try {
               await deleteDoc(locRef);
               toast({ title: "Location Deleted", description: "The location has been removed." });
-              router.refresh(); // Force a server-side refetch of data for the page
+              router.refresh();
           } catch (serverError: any) {
               const permissionError = new FirestorePermissionError({
                   path: locRef.path,
                   operation: 'delete',
               });
               errorEmitter.emit('permission-error', permissionError);
-              toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the location." });
+              toast({ variant: "destructive", title: "Deletion Failed", description: serverError.message || "Could not delete the location." });
           }
       }
   };
@@ -217,6 +218,7 @@ export default function DashboardPage() {
 
   return (
     <main className="flex-1 p-4 md:p-6 bg-slate-50">
+      <AlertsDisplay />
       <div className="container mx-auto">
         <Card className="mb-6">
             <CardHeader className="flex flex-row items-center justify-between">

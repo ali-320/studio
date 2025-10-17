@@ -28,6 +28,9 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { useRouter } from 'next/navigation';
 
 const applicationSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -38,6 +41,7 @@ type ApplicationFormValues = z.infer<typeof applicationSchema>;
 
 export function VolunteerApplicationDialog({ children }: { children: React.ReactNode }) {
   const { user, firestore } = useFirebase();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -49,24 +53,33 @@ export function VolunteerApplicationDialog({ children }: { children: React.React
     },
   });
 
-  async function onSubmit(values: ApplicationFormValues) {
-    if (!firestore || !user) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'You must be signed in to apply.',
-      });
-      return;
+  const handleOpen = () => {
+    if (!user) {
+        toast({
+            variant: 'destructive',
+            title: 'Login Required',
+            description: 'You must be signed in to apply as a volunteer.',
+        });
+        router.push('/login');
+    } else {
+        setOpen(true);
     }
+  }
+
+  async function onSubmit(values: ApplicationFormValues) {
+    if (!firestore || !user) return;
 
     setIsSubmitting(true);
-    try {
-      await addDoc(collection(firestore, 'volunteerApplications'), {
+
+    const appData = {
         userId: user.uid,
         name: values.name,
         expertise: values.expertise,
         status: 'pending',
-      });
+    };
+
+    try {
+      await addDoc(collection(firestore, 'volunteerApplications'), appData);
       toast({
         title: 'Application Submitted!',
         description: 'Thank you for your interest. We will review your application shortly.',
@@ -75,6 +88,12 @@ export function VolunteerApplicationDialog({ children }: { children: React.React
       setOpen(false);
     } catch (error) {
       console.error('Error submitting application:', error);
+      const permissionError = new FirestorePermissionError({
+          path: 'volunteerApplications',
+          operation: 'create',
+          requestResourceData: appData
+      });
+      errorEmitter.emit('permission-error', permissionError);
       toast({
         variant: 'destructive',
         title: 'Submission Failed',
@@ -86,7 +105,7 @@ export function VolunteerApplicationDialog({ children }: { children: React.React
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
