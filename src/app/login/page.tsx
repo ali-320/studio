@@ -13,11 +13,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { HandHelping, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -206,14 +205,6 @@ export default function LoginPage() {
             </TabsContent>
         </Tabs>
       </Card>
-      <div className="mt-4 text-center">
-        <VolunteerApplicationDialog>
-            <Button variant="link" className="text-muted-foreground">
-                <HandHelping className="mr-2 h-4 w-4" />
-                Apply to be a Volunteer
-            </Button>
-        </VolunteerApplicationDialog>
-      </div>
     </main>
   );
 }

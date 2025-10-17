@@ -4,10 +4,13 @@
 import { useRouter } from 'next/navigation';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { Loader } from '@/components/ui/loader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useFirebase } from '@/firebase/client-provider';
 import { useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
+import { HandHelping } from 'lucide-react';
 
 
 export default function ProfilePage() {
@@ -76,6 +79,16 @@ export default function ProfilePage() {
                 </div>
             </div>
           </CardContent>
+          {profile.role === 'registered' && (
+            <CardFooter className="pt-6">
+                <VolunteerApplicationDialog>
+                    <Button variant="secondary" className="w-full">
+                        <HandHelping className="mr-2 h-4 w-4" />
+                        Apply to be a Volunteer
+                    </Button>
+                </VolunteerApplicationDialog>
+            </CardFooter>
+          )}
         </Card>
       </div>
     </main>
