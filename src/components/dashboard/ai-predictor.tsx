@@ -9,12 +9,14 @@ import { addDoc, collection, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { predictFloodRisk, Prediction } from '@/ai/flows/predict-flood-risk-flow';
 
-type Prediction = {
-    risk: 'Low' | 'Medium' | 'High';
-    score: number;
-    reason: string;
-    color: string;
+const getRiskColor = (risk: 'Low' | 'Medium' | 'High') => {
+    switch (risk) {
+        case 'Low': return 'text-green-600';
+        case 'Medium': return 'text-yellow-500';
+        case 'High': return 'text-red-600';
+    }
 };
 
 export function AIPredictor() {
@@ -25,20 +27,47 @@ export function AIPredictor() {
     const [creatingAlert, setCreatingAlert] = useState(false);
     const [prediction, setPrediction] = useState<Prediction | null>(null);
 
-    const handlePrediction = () => {
+    const handlePrediction = async () => {
+        if (!firestore || !user) return;
+        
         setLoading(true);
         setPrediction(null);
-        // Simulate AI processing
-        setTimeout(() => {
-            const risks: Prediction[] = [
-                { risk: 'Low', score: 2, reason: 'Current weather data shows minimal rainfall and stable river levels. News reports indicate no immediate threats in the area.', color: 'text-green-600' },
-                { risk: 'Medium', score: 5, reason: 'Increased rainfall is expected in the next 24 hours, and river levels are rising slightly. Monitor conditions closely.', color: 'text-yellow-500' },
-                { risk: 'High', score: 9, reason: 'Heavy, sustained rainfall is occurring in elevated regions, river levels are approaching flood stage, and news sources report potential for imminent flooding.', color: 'text-red-600' }
-            ];
-            const randomPrediction = risks[Math.floor(Math.random() * risks.length)];
-            setPrediction(randomPrediction);
+        
+        try {
+            const userRef = doc(firestore, 'users', user.uid);
+            const userDocSnap = await getDoc(userRef);
+
+            if (!userDocSnap.exists()) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not find user data.' });
+                setLoading(false);
+                return;
+            }
+            const userData = userDocSnap.data();
+            const locationAddress = userData.currentLocationAddress;
+            const locationId = locationAddress ? locationAddress.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() : null;
+
+            let newsArticles: any[] = [];
+            if (locationId) {
+                const newsRef = doc(firestore, 'news', locationId);
+                const newsSnap = await getDoc(newsRef);
+                if (newsSnap.exists()) {
+                    newsArticles = newsSnap.data().articles;
+                }
+            }
+            
+            const result = await predictFloodRisk({
+                location: locationAddress,
+                news: newsArticles.map(a => `${a.title}: ${a.summary}`).join('\n'),
+            });
+            
+            setPrediction(result);
+
+        } catch (error) {
+             console.error("AI Prediction failed:", error);
+             toast({ variant: 'destructive', title: 'Prediction Failed', description: "The AI service might be unavailable." });
+        } finally {
             setLoading(false);
-        }, 1500);
+        }
     };
 
     const handleCreateAlert = async () => {
@@ -108,7 +137,7 @@ export function AIPredictor() {
                     <div className="pt-4 text-left p-4 border rounded-lg bg-card">
                         <h3 className="font-bold text-lg">Prediction Result:</h3>
                         <div className="flex items-baseline gap-2">
-                             <p className={`text-3xl font-bold ${prediction.color}`}>{prediction.risk} Risk</p>
+                             <p className={`text-3xl font-bold ${getRiskColor(prediction.risk)}`}>{prediction.risk} Risk</p>
                              <p className="text-xl font-semibold text-muted-foreground">(Score: {prediction.score}/10)</p>
                         </div>
                        

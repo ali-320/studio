@@ -136,6 +136,31 @@
         "timestamp": { "type": "string", "format": "date-time", "description": "When the message was sent." }
       },
       "required": ["userId", "userName", "text", "timestamp"]
+    },
+    "news": {
+      "title": "News Cache",
+      "description": "Stores cached news articles for a specific location to avoid refetching.",
+      "type": "object",
+      "properties": {
+        "articles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "summary": { "type": "string" },
+              "source": { "type": "string" },
+              "url": { "type": "string", "format": "uri" }
+            },
+            "required": ["title", "summary", "source", "url"]
+          }
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["articles", "updatedAt"]
     }
   },
   "auth": {
@@ -165,6 +190,10 @@
     "/volunteerChats/{chatId}": {
       "schema": { "$ref": "#/entities/volunteerChat" },
       "description": "Stores chat messages for volunteers."
+    },
+    "/news/{locationId}": {
+      "schema": { "$ref": "#/entities/news" },
+      "description": "Caches news articles for a given location, where the document ID is a sanitized version of the location name."
     }
   }
 }
