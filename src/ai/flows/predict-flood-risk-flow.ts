@@ -67,4 +67,3 @@ const predictFloodRiskFlow = ai.defineFlow(
         }
     }
 );
-
