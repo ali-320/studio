@@ -81,18 +81,21 @@ export function NewsBoard({ location }: { location: string | null }) {
         updatedAt: new Date(),
       };
       
-      await setDoc(newsRef, newsData);
+      setDoc(newsRef, newsData).catch((serverError) => {
+          const permissionError = new FirestorePermissionError({
+              path: newsRef.path,
+              operation: 'write',
+              requestResourceData: newsData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+          setError("Failed to refresh news. You might lack permissions.");
+      });
       
       toast({ title: "News Updated", description: "The news feed has been refreshed." });
 
     } catch (err) {
       console.error("Error refreshing news:", err);
-       const permissionError = new FirestorePermissionError({
-          path: `news/${locationId}`,
-          operation: 'write',
-      });
-      errorEmitter.emit('permission-error', permissionError);
-      setError("Failed to refresh news. The AI service may be down or you might lack permissions.");
+      setError("Failed to refresh news. The AI service may be down.");
     } finally {
       setRefreshing(false);
     }

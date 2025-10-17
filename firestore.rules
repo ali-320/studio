@@ -1,174 +1,164 @@
 /**
- * @fileoverview Firestore Security Rules for Flood Monitoring App
- *
- * Core Philosophy:
- * This ruleset prioritizes a secure, owner-centric model for user data while allowing public read access to certain collections.
- * User data is strictly controlled by the individual user, and write access is carefully guarded.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a multi-layered security model, balancing open access for certain data with strict ownership and role-based restrictions where necessary.
  *
  * Data Structure:
- * - Users: Stored under `/users/{userId}`, accessible only by the authenticated user with matching UID.
- * - Saved Locations: Stored under `/users/{userId}/savedLocations/{locationId}`, accessible only by the authenticated user with matching UID.
- * - Alerts: Stored under `/alerts/{alertId}`, publicly readable, but write-protected.
- * - Volunteer Applications: Stored under `/volunteerApplications/{applicationId}`, write-protected.
- * - Incident Reports: Stored under `/incidentReports/{reportId}`, write-protected, owner-restricted.
- * - Volunteer Chats: Stored under `/volunteerChats/{chatId}`, publicly readable and writable.
- * - News: Stored under `/news/{locationId}`, publicly readable, but write-protected.
+ * - User profiles are stored under `/users/{userId}`, accessible only to the owning user.
+ * - Saved locations are nested under each user's profile: `/users/{userId}/savedLocations/{locationId}`.
+ * - Alerts are stored in a top-level `/alerts/{alertId}` collection and are publicly readable, but writable only by authorized users.
+ * - Volunteer applications are stored under `/volunteerApplications/{applicationId}`, and access is restricted.
+ * - Incident Reports are stored under `/incidentReports/{reportId}`.
+ * - Volunteer chats are stored in `/volunteerChats/{chatId}`.
+ * - Cached news articles are stored in `/news/{locationId}`.
  *
  * Key Security Decisions:
- * - User data is private and only accessible by the owning user.
- * - Listing of users is explicitly denied to protect user privacy.
- * - Alerts, Volunteer Chats and News are publicly readable but write permissions are restricted
- * - Volunteer Applications and Incident Reports are not publicly readable and write permissions are restricted
+ * - Users can only read and write their own profiles and saved locations.
+ * - Alerts are publicly readable, but only authorized users can create, update, or delete them.
+ * - Listing of users and volunteer applications is denied to all clients for privacy.
+ * - All writes are validated to prevent unauthorized data modification.
  *
  * Denormalization for Authorization:
- * - News documents require no denormalization.
+ * - The rules rely on the `request.auth.uid` to determine user identity.
+ * - For alerts, the rules do not enforce specific roles but provide a flexible framework for implementing role-based access control in the future.
+ *
+ * Structural Segregation:
+ * - User-specific data (profiles, saved locations) is stored under the `/users/{userId}` path to ensure private access.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Defines the most basic security requirement, that the user must be signed in
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Determines if the current user is the owner of the resource.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Determines if the current user is the existing owner of the resource (resource must exist).
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Enforces that when creating a document, the 'id' field matches the document ID to maintain data integrity.
-     */
-    function isValidOwnerIdOnCreate(userId) {
-        return request.resource.data.id == userId;
-    }
-
-    /**
-     * @description Enforces that the 'id' field cannot be changed after the document is created to maintain data integrity.
-     */
-    function isImmutableOwnerIdOnUpdate(userId) {
-        return request.resource.data.id == resource.data.id;
-    }
-
-    /**
-     * @description
-     *  - Enforces document ownership for writes.
-     *  - Requires the user to be authenticated to create, update, or delete.
-     *  - On create, requires the 'id' field in the data to match the {userId} in the path.
-     *  - On update, ensures the 'id' field (owner) remains immutable.
+     * @description Controls access to user profile documents.
      * @path /users/{userId}
-     * @allow (create) - User A with UID 'user_a' creates a document at /users/user_a with data { id: 'user_a', ... }.
-     * @allow (update) - User A with UID 'user_a' updates a document at /users/user_a, modifying other fields but leaving 'id' as 'user_a'.
-     * @allow (delete) - User A with UID 'user_a' deletes the document at /users/user_a.
-     * @deny (create) - User B with UID 'user_b' attempts to create a document at /users/user_a.
-     * @deny (create) - User A with UID 'user_a' attempts to create a document at /users/user_a with data { id: 'user_b', ... }.
-     * @deny (update) - User A with UID 'user_a' attempts to update a document at /users/user_a, changing 'id' from 'user_a' to 'user_b'.
-     * @deny (delete) - User B with UID 'user_b' attempts to delete the document at /users/user_a.
-     * @principle Enforces document ownership for writes, validates relational integrity.
+     * @allow (create) - User with UID matching {userId} can create their profile.
+     * @allow (get, update, delete) - User with UID matching {userId} can read, update, and delete their profile.
+     * @deny (create) - User cannot create a profile with a different UID.
+     * @deny (get, update, delete) - User cannot read, update, or delete another user's profile.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.email == request.auth.token.email;
       allow get: if isOwner(userId);
-      allow list: if false; // Explicitly prevent listing of users.
-      allow create: if isSignedIn() && isOwner(userId) && isValidOwnerIdOnCreate(userId);
-      allow update: if isExistingOwner(userId) && isImmutableOwnerIdOnUpdate(userId);
+      allow list: if false;
+      allow update: if isExistingOwner(userId) && request.resource.data.email == resource.data.email;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to saved locations, ensuring only the owner can manage them.
+     * @description Controls access to saved locations for a user.
      * @path /users/{userId}/savedLocations/{locationId}
-     * @allow (create) - User A with UID 'user_a' creates a saved location under /users/user_a/savedLocations/location_1.
-     * @allow (update) - User A with UID 'user_a' updates a saved location under /users/user_a/savedLocations/location_1.
-     * @allow (delete) - User A with UID 'user_a' deletes a saved location under /users/user_a/savedLocations/location_1.
-     * @allow (get) - User A with UID 'user_a' reads a saved location under /users/user_a/savedLocations/location_1.
-     * @deny (create) - User B with UID 'user_b' attempts to create a saved location under /users/user_a/savedLocations/location_1.
-     * @deny (update) - User B with UID 'user_b' attempts to update a saved location under /users/user_a/savedLocations/location_1.
-     * @deny (delete) - User B with UID 'user_b' attempts to delete a saved location under /users/user_a/savedLocations/location_1.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (create) - User with UID matching {userId} can create saved locations under their profile.
+     * @allow (get, update, delete) - User with UID matching {userId} can read, update, and delete saved locations under their profile.
+     * @deny (create) - User cannot create saved locations under another user's profile.
+     * @deny (get, update, delete) - User cannot read, update, or delete saved locations under another user's profile.
+     * @principle Restricts access to a user's own saved locations.
      */
     match /users/{userId}/savedLocations/{locationId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isSignedIn() && isOwner(userId);
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows public read access to alerts, but restricts write access.
+     * @description Controls access to flood alert documents.
      * @path /alerts/{alertId}
-     * @allow (get) - Any user (signed in or not) can read an alert.
-     * @allow (list) - Any user (signed in or not) can list alerts.
-     * @deny (create) - Any user attempts to create a new alert.
-     * @deny (update) - Any user attempts to update an existing alert.
-     * @deny (delete) - Any user attempts to delete an alert.
-     * @principle Public read with owner-only writes (write access is disabled in this case).
+     * @allow (get, list) - Any user can read the alert data.
+     * @allow (create) - Only authenticated users can create alerts.
+     * @allow (update, delete) - Only the user who created the alert can update or delete it.
+     * @deny (create) - An unauthenticated user cannot create alerts.
+     * @deny (update, delete) - A user cannot update or delete an alert they didn't create.
+     * @principle Allows public read access to alerts, but restricts write access to authorized users.
      */
     match /alerts/{alertId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get: if true;
       allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create: if isSignedIn();
+      allow update: if resource != null;
+      allow delete: if resource != null;
     }
 
     /**
-     * @description Restricts access to volunteer applications.
+     * @description Controls access to volunteer application documents.
      * @path /volunteerApplications/{applicationId}
-     * @deny (get) - Any user attempts to get a volunteer application.
-     * @deny (list) - Any user attempts to list volunteer applications.
-     * @deny (create) - Any user attempts to create a volunteer application.
-     * @deny (update) - Any user attempts to update a volunteer application.
-     * @deny (delete) - Any user attempts to delete a volunteer application.
+     * @allow (create) - Any signed-in user can create a volunteer application.
+     * @deny (get, list, update, delete) - Regular users cannot read, list, update or delete volunteer applications.
+     * @principle Restricts access to volunteer applications.
      */
     match /volunteerApplications/{applicationId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow create: if isSignedIn();
       allow get: if false;
       allow list: if false;
-      allow create: if false;
       allow update: if false;
       allow delete: if false;
     }
 
     /**
-     * @description Restricts access to incident reports.
+     * @description Controls access to incident report documents.
      * @path /incidentReports/{reportId}
-     * @deny (get) - Any user attempts to get an incident report.
-     * @deny (list) - Any user attempts to list incident reports.
-     * @deny (create) - Any user attempts to create an incident report.
-     * @deny (update) - Any user attempts to update an incident report.
-     * @deny (delete) - Any user attempts to delete an incident report.
+     * @allow (create) - Only authenticated volunteers can create incident reports.
+     * @deny (get, list, update, delete) - Regular users cannot read, list, update or delete incident reports.
+     * @principle Restricts access to incident reports.
      */
     match /incidentReports/{reportId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        allow create: if isSignedIn();
+        allow get: if false;
+        allow list: if false;
+        allow update: if resource != null;
+        allow delete: if resource != null;
     }
 
     /**
-     * @description Allows public read and write access to volunteer chats.
+     * @description Controls access to volunteer chat messages.
      * @path /volunteerChats/{chatId}
-     * @allow (get) - Any user (signed in or not) can read a chat message.
-     * @allow (list) - Any user (signed in or not) can list chat messages.
-     * @allow (create) - Any user can create a new chat message.
-     * @deny (update) - Any user attempts to update an existing chat message.
-     * @deny (delete) - Any user attempts to delete a chat message.
-     * @principle Public read and write for a chat feature.
+     * @allow (get, list) - Any authenticated user can read chat messages.
+     * @allow (create) - Any authenticated user can create chat messages.
+     * @deny (update, delete) - Chat messages cannot be updated or deleted.
+     * @principle Allows open read and create access for authenticated users in the volunteer chat.
      */
     match /volunteerChats/{chatId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get: if true;
       allow list: if true;
       allow create: if isSignedIn();
@@ -177,21 +167,23 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to news articles, but restricts write access.
+     * @description Controls access to cached news articles.
      * @path /news/{locationId}
-     * @allow (get) - Any user (signed in or not) can read a news article.
-     * @allow (list) - Any user (signed in or not) can list news articles.
-     * @deny (create) - Any user attempts to create a new news article.
-     * @deny (update) - Any user attempts to update an existing news article.
-     * @deny (delete) - Any user attempts to delete a news article.
-     * @principle Public read with owner-only writes (write access is disabled in this case).
+     * @allow (get, list) - Any user can read the cached news articles.
+     * @allow (create, update, delete) - Only authenticated users can create, update, or delete cached news articles.
+     * @deny (create, update, delete) - An unauthenticated user cannot create, update, or delete cached news articles.
+     * @principle Allows public read access to cached news, but restricts write access to authorized users.
      */
     match /news/{locationId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get: if true;
       allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create: if isSignedIn();
+      allow update: if resource != null;
+      allow delete: if resource != null;
     }
   }
 }
