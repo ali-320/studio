@@ -6,7 +6,7 @@ import { Header } from '@/components/header';
 import { FirebaseProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
-  title: 'FloodGuard',
+  title: 'Nigehbaan',
   description: 'AI-powered flood reporting and alert system.',
   manifest: '/manifest.json',
 };

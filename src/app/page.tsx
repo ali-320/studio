@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -153,7 +154,7 @@ export default function Home() {
       <main className="flex-1 p-4 md:p-6">
         <div className="mx-auto max-w-4xl space-y-8">
           <div className="text-center">
-            <h1 className="text-4xl font-bold font-headline text-primary">FloodGuard</h1>
+            <h1 className="text-4xl font-bold font-headline text-primary">Nigehbaan</h1>
             <p className="text-lg text-muted-foreground mt-2">
               Your AI-powered partner in flood safety and response.
             </p>
