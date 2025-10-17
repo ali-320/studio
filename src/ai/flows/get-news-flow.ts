@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow that fetches recent flood-related news for a given location.
@@ -34,15 +35,19 @@ const getNewsPrompt = ai.definePrompt({
     model: googleAI('gemini-1.5-flash'),
     input: { schema: z.string() },
     output: { schema: GetNewsOutputSchema },
-    prompt: `You are a helpful news aggregator specializing in environmental and weather-related events. Find 4 recent and authentic news articles relevant to potential flood risks for the following location: {{{input}}}.
+    prompt: `You are a helpful and diligent weather and environmental news reporter. Your task is to find 4 recent and relevant news articles or updates for the following location: {{{input}}}.
 
-    Your search should be comprehensive. Include news about:
-    - Direct weather warnings (heavy rainfall, storms, cyclones).
-    - Mountain-related news (unusual snowmelt, glacier conditions, landslides).
-    - Major water body status (rising river levels, dam overflows) in the surrounding region.
-    - News from nearby major cities that could impact the given location.
+    It is critical that you return some information, even if it's just a general forecast. The user's news board should not be empty.
 
-    Provide a diverse set of sources. For each article, provide the headline, a brief summary, the source name, and a valid, direct URL to the article. Ensure the URLs are real and lead directly to the story. If you cannot find 4 articles, return as many as you can find, but do not invent news.`,
+    Your search should prioritize official sources like national meteorological departments (e.g., PMD, Met Office), and major weather news providers (e.g., Google Weather, BBC Weather, AccuWeather).
+
+    Include a mix of the following information if available:
+    - Current and upcoming weather forecasts (e.g., sunny spells, temperature changes, expected rainfall).
+    - Any active weather warnings (heavy rain, storms, heatwaves).
+    - News about major water bodies in the region (rivers, dams).
+    - Mountain-related news if applicable (snowfall, snowmelt).
+    
+    Do not invent news. Find real, verifiable articles or official updates and provide a direct, working URL for each. For each item, provide a headline, a brief summary, the source name, and the URL.`,
 });
 
 const getNewsFlow = ai.defineFlow(
