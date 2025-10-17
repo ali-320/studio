@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -75,6 +76,21 @@ export function NewsBoard({ location }: { location: string | null }) {
     setError(null);
     try {
       const result = await getNewsForLocation(location);
+
+      if (result.articles && result.articles.length > 0) {
+        toast({
+          title: "AI News Summary (Debug)",
+          description: `Summary of first article: "${result.articles[0].summary}"`,
+          duration: 10000,
+        });
+      } else {
+         toast({
+          variant: "destructive",
+          title: "AI News (Debug)",
+          description: "The AI did not return any articles.",
+        });
+      }
+
       const newsRef = doc(firestore, 'news', locationId);
 
       const newsData = {
@@ -89,14 +105,18 @@ export function NewsBoard({ location }: { location: string | null }) {
               requestResourceData: newsData,
           });
           errorEmitter.emit('permission-error', permissionError);
-          // The toast and UI update are handled by the permission error system
       });
       
       toast({ title: "News Updated", description: "The news feed has been refreshed." });
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error refreshing news:", err);
       setError("Failed to refresh news. The AI service may be down or you might lack permissions.");
+       toast({
+        variant: "destructive",
+        title: "Error Refreshing News",
+        description: err.message || "An unknown error occurred.",
+      });
     } finally {
       setRefreshing(false);
     }
