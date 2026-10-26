@@ -128,3 +128,15 @@ before demonstrating the application.
 ## License
 
 This project is released under the [MIT License](./LICENSE).
+
+## Project Contributions
+
+Nigehbaan was initially started as a collaborative project with several team
+members. The primary contributors responsible for the substantial majority of
+the implementation—more than 95% of the project work—were **Hassan Ali** and
+**Faisal Iqbal**.
+
+Hassan Ali led the main development effort. Faisal Iqbal joined during the
+hackathon period and resolved API-related issues, improved the integration of
+live data, and managed fixes to the prediction system. Their combined work
+formed the core of the project's functionality and final implementation.
