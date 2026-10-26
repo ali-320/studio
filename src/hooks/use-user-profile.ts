@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -10,6 +9,11 @@ export interface UserProfile {
   email: string;
   role: 'registered' | 'volunteer' | 'admin';
   status?: 'available' | 'offline' | 'responding';
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+  currentLocationAddress?: string;
 }
 
 export function useUserProfile() {

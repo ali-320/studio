@@ -1,19 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ComposedChart } from 'recharts';
-import { Thermometer, Droplets, MountainSnow } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/tabs';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Line } from 'recharts';
+import { Droplets, MountainSnow } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { weatherData, glacierData, years } from '@/lib/weather-data';
+import { generateMonthlyData, generateGlacierData, years } from '@/lib/weather-data';
 
+// Import correct Tabs components from UI folder
+import { Tabs as CustomTabs, TabsContent as CustomTabsContent, TabsList as CustomTabsList, TabsTrigger as CustomTabsTrigger } from '@/components/ui/tabs';
 
-export function WeatherCharts() {
+interface WeatherChartsProps {
+    location: { latitude: number; longitude: number };
+}
+
+export function WeatherCharts({ location }: WeatherChartsProps) {
   const [selectedYear, setSelectedYear] = useState<string>(years[years.length - 1].toString());
 
-  const currentYearWeatherData = weatherData.find(d => d.year === parseInt(selectedYear))?.data || [];
-  const currentYearGlacierData = glacierData.find(d => d.year === parseInt(selectedYear))?.data || [];
+  const currentYearWeatherData = useMemo(() => 
+    generateMonthlyData(parseInt(selectedYear), location.latitude, location.longitude),
+    [selectedYear, location]
+  );
+
+  const currentYearGlacierData = useMemo(() => 
+    generateGlacierData(parseInt(selectedYear), location.latitude, location.longitude),
+    [selectedYear, location]
+  );
   
   return (
     <Card>
@@ -21,7 +34,7 @@ export function WeatherCharts() {
         <div className="flex justify-between items-start">
             <div>
                 <CardTitle>Historical Weather & Climate Data</CardTitle>
-                <CardDescription>Decade-long data for your region</CardDescription>
+                <CardDescription>Coordinate-based historical estimates</CardDescription>
             </div>
              <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="w-[120px]">
@@ -36,12 +49,12 @@ export function WeatherCharts() {
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="weather">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="weather"><Droplets className="mr-2 h-4 w-4" />Weather</TabsTrigger>
-            <TabsTrigger value="glacier"><MountainSnow className="mr-2 h-4 w-4" />Glacier Index</TabsTrigger>
-          </TabsList>
-          <TabsContent value="weather">
+        <CustomTabs defaultValue="weather">
+          <CustomTabsList className="grid w-full grid-cols-2">
+            <CustomTabsTrigger value="weather"><Droplets className="mr-2 h-4 w-4" />Weather</CustomTabsTrigger>
+            <CustomTabsTrigger value="glacier"><MountainSnow className="mr-2 h-4 w-4" />Glacier Index</CustomTabsTrigger>
+          </CustomTabsList>
+          <CustomTabsContent value="weather">
              <div className="h-[350px] w-full pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={currentYearWeatherData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
@@ -56,8 +69,8 @@ export function WeatherCharts() {
                     </ComposedChart>
                 </ResponsiveContainer>
              </div>
-          </TabsContent>
-          <TabsContent value="glacier">
+          </CustomTabsContent>
+          <CustomTabsContent value="glacier">
             <div className="h-[350px] w-full pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={currentYearGlacierData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
@@ -70,8 +83,8 @@ export function WeatherCharts() {
                     </BarChart>
                 </ResponsiveContainer>
             </div>
-          </TabsContent>
-        </Tabs>
+          </CustomTabsContent>
+        </CustomTabs>
       </CardContent>
     </Card>
   );
