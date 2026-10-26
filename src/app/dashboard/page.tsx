@@ -6,7 +6,7 @@ import { useFirebase } from '@/firebase/client-provider';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { collection, deleteDoc, doc, onSnapshot, setDoc, addDoc, query } from 'firebase/firestore';
 import { Loader } from '@/components/ui/loader';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { WeatherCharts } from '@/components/dashboard/weather-charts';
 import { LiveWeather } from '@/components/dashboard/live-weather';
 import { NewsBoard } from '@/components/dashboard/news-board';
@@ -64,7 +64,7 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
-  const updateUserLocation = (lat: number, lon: number, address: string) => {
+  const updateUserLocation = async (lat: number, lon: number, address: string) => {
       if (!user || !firestore) return;
       const userRef = doc(firestore, 'users', user.uid);
       const newLocationData = {
@@ -116,23 +116,6 @@ export default function DashboardPage() {
             const location = await geocodeAddress(address);
             await updateUserLocation(location.latitude, location.longitude, location.address);
 
-<<<<<<< HEAD
-            if (data && data.length > 0) {
-                const { lat, lon, display_name } = data[0];
-                const latitude = parseFloat(lat);
-                const longitude = parseFloat(lon);
-                
-                updateUserLocation(latitude, longitude, display_name);
-
-                if (locationNameToSave) {
-                    const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
-                    addDoc(savedLocationsRef, { name: locationNameToSave, address: display_name, latitude, longitude });
-                }
-                
-                toast({ title: "Location Updated", description: `Now showing data for ${display_name}` });
-            } else {
-                toast({ variant: "destructive", title: "Geocoding Failed", description: "Could not find coordinates for the address." });
-=======
             if (locationNameToSave) {
                 const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
                 await addDoc(savedLocationsRef, {
@@ -141,21 +124,12 @@ export default function DashboardPage() {
                     latitude: location.latitude,
                     longitude: location.longitude,
                 });
->>>>>>> 99ce519 (Use real weather trends and AI flood prediction)
             }
 
-            await fetchAndSetLocationData(user.uid);
             toast({ title: "Location Updated", description: `Now showing data for ${location.address}` });
         } catch (error) {
-<<<<<<< HEAD
-            console.error("Geocoding failed:", error);
-            toast({ variant: "destructive", title: "Error", description: "Failed to set manual location." });
-=======
             console.error("Geocoding or Firestore update failed:", error);
-            throw error;
-        } finally {
-            setLoading(false);
->>>>>>> 99ce519 (Use real weather trends and AI flood prediction)
+            toast({ variant: "destructive", title: "Error", description: "Failed to set manual location." });
         }
     }
   };
@@ -193,12 +167,37 @@ export default function DashboardPage() {
   if (!profile?.location) {
      return (
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center text-center p-4">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold">Location Not Found</h1>
-        <p className="text-muted-foreground mt-2">We couldn't find your location data. Please return to the home page to set it.</p>
-        <Button onClick={() => router.push('/')} className="mt-4">
-          Go Home
-        </Button>
+        <div className="mx-auto max-w-md space-y-6">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold font-headline text-primary">Nigehbaan</h1>
+            <p className="text-lg text-muted-foreground mt-2">
+              Your AI-powered partner in flood safety and response.
+            </p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Welcome to Your Dashboard!</CardTitle>
+              <CardDescription>
+                Please set your primary location to start receiving localized alerts, weather data, and flood predictions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <LocationDialog
+                onLocationUpdate={handleLocationUpdate}
+                onManualLocationSubmit={handleManualLocation}
+                allowSave={true}
+              >
+                <Button className="w-full h-20" size="lg">
+                  <MapPin className="mr-2 h-5 w-5" /> Set Your Location
+                </Button>
+              </LocationDialog>
+              <p className="text-xs text-muted-foreground text-center">
+                This will be saved as your default location. You can add more locations later.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -256,24 +255,30 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-<<<<<<< HEAD
-            <AIPredictor />
-            <WeatherCharts location={profile.location} />
-=======
-            <AIPredictor latitude={currentLocation.latitude} longitude={currentLocation.longitude} location={currentLocationAddress || 'selected location'} />
-            <WeatherCharts latitude={currentLocation.latitude} longitude={currentLocation.longitude} />
->>>>>>> 99ce519 (Use real weather trends and AI flood prediction)
+            {profile.location && (
+              <>
+                <AIPredictor
+                  latitude={profile.location.latitude}
+                  longitude={profile.location.longitude}
+                  location={profile.currentLocationAddress || 'selected location'}
+                />
+                <WeatherCharts
+                  latitude={profile.location.latitude}
+                  longitude={profile.location.longitude}
+                />
+              </>
+            )}
             <ScenarioChecker />
           </div>
 
           <div className="space-y-6">
-<<<<<<< HEAD
-            <LiveWeather location={profile.location} address={profile.currentLocationAddress} />
+            {profile.location && (
+              <LiveWeather
+                latitude={profile.location.latitude}
+                longitude={profile.location.longitude}
+              />
+            )}
             <NewsBoard location={profile.currentLocationAddress || null} />
-=======
-            <LiveWeather latitude={currentLocation.latitude} longitude={currentLocation.longitude} />
-            <NewsBoard location={currentLocationAddress} />
->>>>>>> 99ce519 (Use real weather trends and AI flood prediction)
           </div>
         </div>
       </div>

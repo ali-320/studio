@@ -87,23 +87,27 @@ export default function LoginPage() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
-      
+
       const userData = {
         name: values.name,
         email: user.email,
         role: 'registered',
         createdAt: new Date().toISOString(),
       };
-      
+
       const userRef = doc(firestore, 'users', user.uid);
-      setDoc(userRef, userData, { merge: true }).catch((serverError) => {
+      try {
+        await setDoc(userRef, userData, { merge: true });
+      } catch (serverError) {
         const permissionError = new FirestorePermissionError({
           path: userRef.path,
           operation: 'create',
           requestResourceData: userData
         });
         errorEmitter.emit('permission-error', permissionError);
-      });
+        // Don't throw here - Auth user is created, just log the error
+        console.error('Failed to create user profile in Firestore:', serverError);
+      }
 
       toast({ title: 'Account Created!', description: 'You have been logged in.' });
       // The useEffect will handle redirection to set location.

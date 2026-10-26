@@ -32,12 +32,13 @@ function weatherDescription(code: number): string {
 }
 
 function riskColor(risk: FloodRiskOutput['risk']): string {
-  return {
+  const colors: Record<FloodRiskOutput['risk'], string> = {
     Low: 'text-green-600',
     Moderate: 'text-yellow-600',
     High: 'text-orange-600',
     Severe: 'text-red-600',
-  }[risk];
+  };
+  return colors[risk];
 }
 
 export function AIPredictor({ latitude, longitude, location }: AIPredictorProps) {

@@ -49,7 +49,7 @@ const predictFloodRiskFlow = ai.defineFlow(
     inputSchema: FloodRiskInputSchema,
     outputSchema: FloodRiskOutputSchema,
   },
-  async (input) => {
+  async (input: FloodRiskInput) => {
     const { output } = await predictFloodRiskPrompt(input);
     if (!output) {
       throw new Error('The AI did not return a flood-risk assessment.');

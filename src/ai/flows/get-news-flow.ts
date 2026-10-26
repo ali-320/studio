@@ -59,7 +59,7 @@ const getNewsFlow = ai.defineFlow(
         inputSchema: z.string(),
         outputSchema: GetNewsOutputSchema,
     },
-    async (location) => {
+    async (location: string) => {
         try {
             const { output } = await getNewsPrompt(location);
             

@@ -54,3 +54,36 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
 
   return result.display_name || `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
 }
+
+export interface SearchResult {
+  place_id: number;
+  licence: string;
+  osm_type: string;
+  osm_id: number;
+  boundingbox: string[];
+  lat: string;
+  lon: string;
+  display_name: string;
+  class: string;
+  type: string;
+  importance: number;
+  icon?: string;
+}
+
+export async function searchLocations(query: string): Promise<SearchResult[]> {
+  if (!query.trim() || query.trim().length < 3) {
+    return [];
+  }
+
+  const results = await nominatimRequest<SearchResult[]>(
+    `/search?${new URLSearchParams({
+      q: query.trim(),
+      format: 'jsonv2',
+      limit: '5',
+      addressdetails: '1',
+      'accept-language': 'en',
+    }).toString()}`
+  );
+
+  return results || [];
+}
