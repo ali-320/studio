@@ -59,7 +59,7 @@ describe('Location Utilities', () => {
       });
 
       await expect(geocodeAddress('New York')).rejects.toThrow(
-        'Location service returned 500.'
+        'No location was found for "New York".'
       );
     });
   });

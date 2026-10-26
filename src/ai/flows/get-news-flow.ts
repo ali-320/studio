@@ -31,9 +31,10 @@ export async function getNewsForLocation(location: string): Promise<GetNewsOutpu
 
 const getNewsPrompt = ai.definePrompt({
     name: 'getNewsPrompt',
-    model: 'googleai/gemini-1.5-flash',
+    model: 'googleai/gemini-2.5-flash',
+    input: { schema: z.object({ location: z.string() }) },
     output: { schema: GetNewsOutputSchema },
-    prompt: `You are a web search and summarization engine. Your task is to find 4 recent and relevant online articles or official updates about flood-related factors for the following location: {{{input}}}.
+    prompt: `You are a web search and summarization engine. Your task is to find 4 recent and relevant online articles or official updates about flood-related factors for the following location: {{{location}}}.
 
     It is critical that you return some information, even if it's just a general forecast. The user's news board should not be empty.
 
@@ -61,7 +62,7 @@ const getNewsFlow = ai.defineFlow(
     },
     async (location: string) => {
         try {
-            const { output } = await getNewsPrompt(location);
+            const { output } = await getNewsPrompt({ location });
             
             if (!output || output.articles.length === 0) {
                  console.log("AI returned no news. This should not happen with the new prompt, but as a fallback, returning an empty array.");
@@ -71,8 +72,7 @@ const getNewsFlow = ai.defineFlow(
             return output;
         } catch (error) {
             console.error("Error in getNewsFlow:", error);
-            // Return empty array on failure to prevent client-side crashes
-            return { articles: [] };
+            throw new Error('The AI news service failed to return a valid response.');
         }
     }
 );

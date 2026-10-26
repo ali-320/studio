@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { BrainCircuit, Loader2 } from 'lucide-react';
+import { analyzeFloodScenario, type ScenarioOutput } from '@/ai/flows/analyze-scenario-flow';
 
 const scenarioSchema = z.object({
     river: z.enum(['low', 'normal', 'high', 'overflowing']),
@@ -22,7 +23,8 @@ type ScenarioFormValues = z.infer<typeof scenarioSchema>;
 
 export function ScenarioChecker() {
     const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<string | null>(null);
+    const [result, setResult] = useState<ScenarioOutput | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const form = useForm<ScenarioFormValues>({
         resolver: zodResolver(scenarioSchema),
@@ -31,12 +33,15 @@ export function ScenarioChecker() {
     async function onSubmit(values: ScenarioFormValues) {
         setLoading(true);
         setResult(null);
-        console.log(values);
-        // Simulate AI call
-        setTimeout(() => {
-            setResult(`Based on a scenario with ${values.rainfall} rainfall, a ${values.river} river level, and ${values.terrain} terrain, the AI predicts a moderate risk of localized flooding, especially if drainage systems are known to be poor.`);
+        setError(null);
+        try {
+            setResult(await analyzeFloodScenario(values));
+        } catch (scenarioError) {
+            console.error('Scenario analysis failed:', scenarioError);
+            setError('Could not analyze the scenario. Check that the AI key is configured and try again.');
+        } finally {
             setLoading(false);
-        }, 2000);
+        }
     }
 
     return (
@@ -122,10 +127,12 @@ export function ScenarioChecker() {
                         </Button>
                     </form>
                 </Form>
+                 {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
                  {result && !loading && (
                     <div className="pt-6 mt-4 border-t">
                         <h3 className="font-bold text-lg">Scenario Prediction:</h3>
-                        <p className="text-muted-foreground mt-2">{result}</p>
+                        <p className="text-2xl font-bold mt-2">{result.risk} Risk</p>
+                        <p className="text-muted-foreground mt-2">{result.assessment}</p>
                     </div>
                 )}
             </CardContent>

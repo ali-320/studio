@@ -21,7 +21,7 @@ export type FloodRiskOutput = z.infer<typeof FloodRiskOutputSchema>;
 
 const predictFloodRiskPrompt = ai.definePrompt({
   name: 'predictFloodRiskPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: FloodRiskInputSchema },
   output: { schema: FloodRiskOutputSchema },
   prompt: `Assess flood risk for {{{location}}} using the current weather observations below.

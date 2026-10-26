@@ -74,12 +74,11 @@ export function LiveWeather({ latitude, longitude }: LiveWeatherProps) {
   }, [latitude, longitude]);
 
   const weatherStatus = weather ? getWeatherStatus(weather.weatherCode) : 'Loading weather...';
-
   const getWeatherIcon = () => {
     if (weatherStatus.includes("Rain") || weatherStatus.includes("Thunder")) return <CloudRain className="h-10 w-10 text-blue-400" />;
     if (weatherStatus.includes("Cloud")) return <Cloud className="h-10 w-10 text-gray-400" />;
     return <Sun className="h-10 w-10 text-yellow-400" />;
-  }
+  };
 
   return (
     <Card>
@@ -97,18 +96,18 @@ export function LiveWeather({ latitude, longitude }: LiveWeatherProps) {
             </div>
           </div>
           <div className="text-right">
-              <div className="flex items-center justify-end gap-1">
-                <Wind className="h-5 w-5 text-muted-foreground"/>
-                <p className="font-bold">{weather ? `${Math.round(weather.windSpeed)} km/h` : '--'}</p>
-                {weather && <p className="text-sm text-muted-foreground">{getWindDirection(weather.windDirection)}</p>}
-              </div>
-              <p className="text-xs text-muted-foreground">Wind</p>
+            <div className="flex items-center justify-end gap-1">
+              <Wind className="h-5 w-5 text-muted-foreground" />
+              <p className="font-bold">{weather ? `${Math.round(weather.windSpeed)} km/h` : '--'}</p>
+              {weather && <p className="text-sm text-muted-foreground">{getWindDirection(weather.windDirection)}</p>}
+            </div>
+            <p className="text-xs text-muted-foreground">Wind</p>
           </div>
         </div>
         <Link href={`https://zoom.earth/maps/wind-speed/#view=${latitude},${longitude},10z`} target="_blank" rel="noopener noreferrer" className="w-full">
-            <Button className="w-full">
-                <Compass className="mr-2 h-4 w-4" /> View Live Weather Map
-            </Button>
+          <Button className="w-full">
+            <Compass className="mr-2 h-4 w-4" /> View Live Weather Map
+          </Button>
         </Link>
       </CardContent>
     </Card>

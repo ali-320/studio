@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase/client-provider';
 import { useUserProfile } from '@/hooks/use-user-profile';
@@ -95,11 +95,11 @@ export default function DashboardPage() {
           address = `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
         }
 
-        updateUserLocation(latitude, longitude, address);
+        await updateUserLocation(latitude, longitude, address);
 
         if (locationNameToSave) {
             const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
-            addDoc(savedLocationsRef, { name: locationNameToSave, address, latitude, longitude });
+            await addDoc(savedLocationsRef, { name: locationNameToSave, address, latitude, longitude });
         }
         
         toast({ title: "Location Updated", description: `Now showing data for ${address}` });
@@ -135,7 +135,7 @@ export default function DashboardPage() {
   };
   
   const handleSelectSavedLocation = (location: SavedLocation) => {
-      updateUserLocation(location.latitude, location.longitude, location.address);
+      void updateUserLocation(location.latitude, location.longitude, location.address);
       toast({ title: "Location Switched", description: `Now showing data for ${location.name}` });
   };
 

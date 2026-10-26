@@ -44,9 +44,7 @@ function aggregateMonthlyData(data: ArchiveResponse['daily'], year: number): His
 
   return monthly.map(({ month, temperatures, rainfall }) => ({
     month,
-    temp: temperatures.length
-      ? Number((temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length).toFixed(1))
-      : null,
+    temp: temperatures.length ? Number((temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length).toFixed(1)) : null,
     rainfall: temperatures.length || rainfall > 0 ? Number(rainfall.toFixed(1)) : null,
   }));
 }
@@ -63,7 +61,6 @@ export function WeatherCharts({ latitude, longitude }: WeatherChartsProps) {
     const endDate = new Date().toISOString().slice(0, 10);
     setLoading(true);
     setError(null);
-
     fetch(`https://archive-api.open-meteo.com/v1/archive?${new URLSearchParams({
       latitude: String(latitude),
       longitude: String(longitude),
@@ -83,14 +80,10 @@ export function WeatherCharts({ latitude, longitude }: WeatherChartsProps) {
         setError('Historical weather is temporarily unavailable.');
       })
       .finally(() => setLoading(false));
-
     return () => controller.abort();
   }, [latitude, longitude]);
 
-  const chartData = useMemo(
-    () => aggregateMonthlyData(history, Number.parseInt(selectedYear, 10)),
-    [history, selectedYear]
-  );
+  const chartData = useMemo(() => aggregateMonthlyData(history, Number.parseInt(selectedYear, 10)), [history, selectedYear]);
 
   return (
     <Card>
@@ -102,9 +95,7 @@ export function WeatherCharts({ latitude, longitude }: WeatherChartsProps) {
           </div>
           <Select value={selectedYear} onValueChange={setSelectedYear}>
             <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {years.map((year) => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
-            </SelectContent>
+            <SelectContent>{years.map((year) => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </CardHeader>

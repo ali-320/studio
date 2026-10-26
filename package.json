@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 9002",
+    "test:smoke": "tsx scripts/smoke-test.ts",
     "genkit:dev": "tsx -r dotenv/config src/ai/dev.ts",
     "genkit:watch": "tsx -r dotenv/config --watch src/ai/dev.ts",
     "build": "next build",
