@@ -11,17 +11,18 @@ import { doc, getDoc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { VolunteerApplicationDialog } from '@/components/volunteer-application-dialog';
 import { LocationDialog } from '@/components/location-dialog';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { geocodeAddress, reverseGeocode } from '@/lib/location';
 
+export const dynamic = 'force-dynamic';
 
 export default function Home() {
   const { user, loading, firestore } = useFirebase();
   const [isLocationSet, setIsLocationSet] = useState(false);
   const [isCheckingLocation, setIsCheckingLocation] = useState(true);
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
   
   useEffect(() => {
@@ -38,12 +39,12 @@ export default function Home() {
         }).catch(() => setIsCheckingLocation(false));
       } else {
         // If not logged in, redirect to login page.
-        const intent = searchParams.get('intent');
+        const intent = new URLSearchParams(window.location.search).get('intent');
         const loginUrl = intent ? `/login?intent=${intent}` : '/login';
         router.push(loginUrl);
       }
     }
-  }, [user, loading, firestore, router, searchParams]);
+  }, [user, loading, firestore, router]);
 
   const handleLocationUpdate = async (position: GeolocationPosition) => {
     if (user && firestore) {
@@ -52,11 +53,7 @@ export default function Home() {
       
       let address = 'Current Location';
       try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-        const data = await response.json();
-        if (data && data.display_name) {
-          address = data.display_name;
-        }
+        address = await reverseGeocode(latitude, longitude);
       } catch (geocodeError) {
         console.error("Reverse geocoding failed:", geocodeError);
         address = `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
@@ -96,24 +93,19 @@ export default function Home() {
   const handleManualLocation = async (address: string) => {
      if (user && firestore) {
         try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
-            const data = await response.json();
-
-            if (data && data.length > 0) {
-                const { lat, lon, display_name } = data[0];
-                const latitude = parseFloat(lat);
-                const longitude = parseFloat(lon);
-                
+            const location = await geocodeAddress(address);
+            {
+                const { latitude, longitude } = location;
                 const userRef = doc(firestore, 'users', user.uid);
                 const userData = {
                     location: { latitude, longitude },
                     status: 'available',
-                    currentLocationAddress: display_name,
+                    currentLocationAddress: location.address,
                 };
                
                 setDoc(userRef, userData, { merge: true }).then(async () => {
                     const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
-                    await addDoc(savedLocationsRef, { name: 'Home', address: display_name, latitude, longitude });
+                    await addDoc(savedLocationsRef, { name: 'Home', address: location.address, latitude, longitude });
                     setIsLocationSet(true);
                     router.push('/dashboard');
                 }).catch((serverError) => {
@@ -124,19 +116,13 @@ export default function Home() {
                     });
                     errorEmitter.emit('permission-error', permissionError);
                 });
-            } else {
-                 toast({
-                    variant: "destructive",
-                    title: "Geocoding Failed",
-                    description: "Could not find coordinates for that address. Please try a different one.",
-                });
             }
         } catch (error) {
             console.error("Geocoding or Firestore update failed:", error);
             toast({
               variant: "destructive",
-              title: "Update Failed",
-              description: "Could not save your manual location."
+              title: "Location Not Found",
+              description: error instanceof Error ? error.message : "Could not save your manual location."
             });
         }
     }

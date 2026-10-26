@@ -20,6 +20,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { AlertsDisplay } from '@/components/dashboard/alerts-display';
 import { AIPredictor } from '@/components/dashboard/ai-predictor';
+import { geocodeAddress, reverseGeocode } from '@/lib/location';
 
 interface SavedLocation {
     id: string;
@@ -70,12 +71,15 @@ export default function DashboardPage() {
           location: { latitude: lat, longitude: lon },
           currentLocationAddress: address
       };
-      setDoc(userRef, newLocationData, { merge: true }).catch((serverError) => {
+      try {
+        await setDoc(userRef, newLocationData, { merge: true });
+      } catch (serverError) {
           const permissionError = new FirestorePermissionError({
               path: userRef.path, operation: 'update', requestResourceData: newLocationData,
           });
           errorEmitter.emit('permission-error', permissionError);
-      });
+          throw serverError;
+      }
   };
 
   const handleLocationUpdate = async (position: GeolocationPosition, locationNameToSave?: string) => {
@@ -83,9 +87,13 @@ export default function DashboardPage() {
       const { latitude, longitude } = position.coords;
       
       try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-        const data = await response.json();
-        const address = data?.display_name || `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
+        let address: string;
+        try {
+          address = await reverseGeocode(latitude, longitude);
+        } catch (reverseGeocodeError) {
+          console.error("Reverse geocoding failed:", reverseGeocodeError);
+          address = `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`;
+        }
 
         updateUserLocation(latitude, longitude, address);
 
@@ -105,9 +113,10 @@ export default function DashboardPage() {
  const handleManualLocation = async (address: string, locationNameToSave?: string) => {
      if (user && firestore) {
         try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
-            const data = await response.json();
+            const location = await geocodeAddress(address);
+            await updateUserLocation(location.latitude, location.longitude, location.address);
 
+<<<<<<< HEAD
             if (data && data.length > 0) {
                 const { lat, lon, display_name } = data[0];
                 const latitude = parseFloat(lat);
@@ -123,10 +132,30 @@ export default function DashboardPage() {
                 toast({ title: "Location Updated", description: `Now showing data for ${display_name}` });
             } else {
                 toast({ variant: "destructive", title: "Geocoding Failed", description: "Could not find coordinates for the address." });
+=======
+            if (locationNameToSave) {
+                const savedLocationsRef = collection(firestore, 'users', user.uid, 'savedLocations');
+                await addDoc(savedLocationsRef, {
+                    name: locationNameToSave,
+                    address: location.address,
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                });
+>>>>>>> 99ce519 (Use real weather trends and AI flood prediction)
             }
+
+            await fetchAndSetLocationData(user.uid);
+            toast({ title: "Location Updated", description: `Now showing data for ${location.address}` });
         } catch (error) {
+<<<<<<< HEAD
             console.error("Geocoding failed:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to set manual location." });
+=======
+            console.error("Geocoding or Firestore update failed:", error);
+            throw error;
+        } finally {
+            setLoading(false);
+>>>>>>> 99ce519 (Use real weather trends and AI flood prediction)
         }
     }
   };
@@ -227,14 +256,24 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
+<<<<<<< HEAD
             <AIPredictor />
             <WeatherCharts location={profile.location} />
+=======
+            <AIPredictor latitude={currentLocation.latitude} longitude={currentLocation.longitude} location={currentLocationAddress || 'selected location'} />
+            <WeatherCharts latitude={currentLocation.latitude} longitude={currentLocation.longitude} />
+>>>>>>> 99ce519 (Use real weather trends and AI flood prediction)
             <ScenarioChecker />
           </div>
 
           <div className="space-y-6">
+<<<<<<< HEAD
             <LiveWeather location={profile.location} address={profile.currentLocationAddress} />
             <NewsBoard location={profile.currentLocationAddress || null} />
+=======
+            <LiveWeather latitude={currentLocation.latitude} longitude={currentLocation.longitude} />
+            <NewsBoard location={currentLocationAddress} />
+>>>>>>> 99ce519 (Use real weather trends and AI flood prediction)
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase/client-provider';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
@@ -30,24 +30,26 @@ const signupSchema = z.object({
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
 });
 
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   const { auth, firestore, user, loading } = useFirebase();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
 
   useEffect(() => {
     if (!loading && user) {
-      const intent = searchParams.get('intent');
+      const intent = new URLSearchParams(window.location.search).get('intent');
       if (intent === 'apply_volunteer') {
         router.push('/profile?intent=apply_volunteer');
       } else {
         router.push('/dashboard');
       }
+
     }
-  }, [user, loading, router, searchParams]);
+  }, [user, loading, router]);
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -76,6 +78,7 @@ export default function LoginPage() {
     } finally {
       setIsSubmitting(false);
     }
+
   }
 
   async function onSignupSubmit(values: z.infer<typeof signupSchema>) {
@@ -114,6 +117,7 @@ export default function LoginPage() {
     } finally {
       setIsSubmitting(false);
     }
+
   }
 
   if (loading || user) {

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { Loader } from '@/components/ui/loader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -17,9 +17,12 @@ export default function ProfilePage() {
   const { user, loading: authLoading } = useFirebase();
   const { profile, loading: profileLoading } = useUserProfile();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [openApplication, setOpenApplication] = useState(false);
-  const intentRef = useRef(searchParams.get('intent'));
+  const intentRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    intentRef.current = new URLSearchParams(window.location.search).get('intent');
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) {

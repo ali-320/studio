@@ -18,8 +18,8 @@ import { toast } from '@/hooks/use-toast';
 
 interface LocationDialogProps {
   children: React.ReactNode;
-  onLocationUpdate: (position: GeolocationPosition, name?: string) => void;
-  onManualLocationSubmit: (address: string, name?: string) => void;
+  onLocationUpdate: (position: GeolocationPosition, name?: string) => Promise<void>;
+  onManualLocationSubmit: (address: string, name?: string) => Promise<void>;
   allowSave?: boolean;
 }
 
@@ -42,14 +42,18 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
     
     setIsFetching(true);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const nameToSave = allowSave && locationName.trim() ? locationName.trim() : undefined;
-        onLocationUpdate(position, nameToSave);
-        
-        toast({ title: 'Location Updated!', description: nameToSave ? `Saved "${nameToSave}" and updated location.` : 'Your location has been updated automatically.' });
-        
-        setIsFetching(false);
-        setOpen(false);
+        try {
+          await onLocationUpdate(position, nameToSave);
+          toast({ title: 'Location Updated!', description: nameToSave ? `Saved "${nameToSave}" and updated location.` : 'Your location has been updated automatically.' });
+          setOpen(false);
+        } catch (error) {
+          console.error('Location update failed:', error);
+          toast({ variant: 'destructive', title: 'Location Update Failed', description: 'Could not save this location. Please try again.' });
+        } finally {
+          setIsFetching(false);
+        }
       },
       (error) => {
         console.error('Geolocation error:', error);
@@ -65,7 +69,7 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
     );
   };
   
-  const handleManualSubmit = (e: React.FormEvent) => {
+  const handleManualSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if(manualAddress.trim() === '') {
           toast({ variant: 'destructive', title: 'Invalid Address', description: 'Please enter a valid address.' });
@@ -73,11 +77,17 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
       }
       
       const nameToSave = allowSave && locationName.trim() ? locationName.trim() : undefined;
-      onManualLocationSubmit(manualAddress, nameToSave);
-
-      toast({ title: 'Location Updated!', description: nameToSave ? `Saved "${nameToSave}" and set location.` : 'Your location has been updated.' });
-
-      setOpen(false);
+      setIsFetching(true);
+      try {
+        await onManualLocationSubmit(manualAddress.trim(), nameToSave);
+        toast({ title: 'Location Updated!', description: nameToSave ? `Saved "${nameToSave}" and set location.` : 'Your location has been updated.' });
+        setOpen(false);
+      } catch (error) {
+        console.error('Manual location update failed:', error);
+        toast({ variant: 'destructive', title: 'Location Update Failed', description: 'Could not save this location. Please try again.' });
+      } finally {
+        setIsFetching(false);
+      }
   }
 
   const resetState = () => {
@@ -108,7 +118,7 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
         </DialogHeader>
         
         {showManual ? (
-            <form onSubmit={handleManualSubmit} className="space-y-4 pt-4">
+            <form onSubmit={handleManualSubmit} className="space-y-4 pt-4" onKeyDown={(e) => e.stopPropagation()}>
                 {allowSave && (
                      <Input 
                         placeholder="Save as (e.g., Office, Home)... (optional)"
@@ -117,16 +127,18 @@ export function LocationDialog({ children, onLocationUpdate, onManualLocationSub
                     />
                 )}
                 <Input 
-                    placeholder="Enter full address"
+                    placeholder="Enter any city, town, or address"
                     value={manualAddress}
                     onChange={(e) => setManualAddress(e.target.value)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    autoComplete="street-address"
                     required
                 />
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={() => setShowManual(false)}>Back</Button>
-                    <Button type="submit">
+                    <Button type="submit" disabled={isFetching}>
                         <Save className="mr-2 h-4 w-4"/>
-                        {locationName.trim() ? 'Save and Set' : 'Set Location'}
+                        {isFetching ? 'Finding Location...' : locationName.trim() ? 'Save and Set' : 'Set Location'}
                     </Button>
                 </DialogFooter>
             </form>
